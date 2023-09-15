@@ -1,0 +1,53 @@
+A distributed Genetic Algorithm (dGA) involves multiple subpopulations that evolve independently but periodically exchange information to promote diversity and enhance exploration. Below is a pseudocode outline for a basic distributed Genetic Algorithm:
+
+```python
+Initialize a set of subpopulations, each with its own population of individuals:
+For each subpopulation:
+    Initialize a random population of individuals
+
+Repeat for a fixed number of generations or until convergence:
+    For each subpopulation:
+        Evaluate the fitness of each individual in the subpopulation
+    
+    For each subpopulation:
+        Select parents for reproduction using selection methods (e.g., tournament selection)
+        Apply crossover and mutation operators to create offspring
+    
+    Exchange information between subpopulations periodically:
+    For each subpopulation:
+        Share a fraction of individuals with neighboring subpopulations
+        Receive individuals from neighboring subpopulations
+    
+    For each subpopulation:
+        Replace some individuals with offspring and received individuals
+        Maintain the best individuals based on fitness (optional: use an elitism strategy)
+    
+    Evaluate convergence criteria (e.g., maximum number of generations or desired fitness level)
+``'
+
+
+# Standard Genetic Algorithm (GA) Pseudocode
+
+Initialize a population of individuals:
+For each individual:
+    Initialize a random set of genes (solution representation)
+
+Repeat for a fixed number of generations or until convergence:
+    For each individual in the population:
+        Evaluate the fitness of the individual based on the problem
+    
+    Create an empty mating pool:
+    For each individual in the population:
+        Calculate the selection probability for the individual based on its fitness
+        Add the individual to the mating pool based on its selection probability
+    
+    Create a new population through reproduction:
+    While the new population is not full:
+        Select two parents from the mating pool (e.g., roulette wheel or tournament selection)
+        Apply crossover (recombination) to create one or more offspring
+        Apply mutation to the offspring with a certain probability
+        Add the offspring to the new population
+    
+    Replace the old population with the new population
+    
+    Evaluate convergence criteria (e.g., maximum number of generations or desired fitness level)
