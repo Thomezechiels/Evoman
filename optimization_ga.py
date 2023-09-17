@@ -56,9 +56,8 @@ def simulation(env,x):
 def evaluate(x):
     return np.array(list(map(lambda y: simulation(ENV, y), x)))
 
-def selection_fps(pop, fit_vals, num_couples, fps_var="default", fps_transpose=10):
+def selection_fps(fit_vals, fps_var="default", fps_transpose=10):
     # Fitness Proportional Selection (FPS) has 4 variations: default, transpose, windowing, scaling
-    couples = np.zeros(num_couples)
     if fps_var == 'transpose':
         fit_vals += fps_transpose
     elif fps_var == 'windowing':
@@ -68,9 +67,7 @@ def selection_fps(pop, fit_vals, num_couples, fps_var="default", fps_transpose=1
         fit_vals = np.array([max(f - (mean - 2*std),0) for f in fit_vals])
         
     selection_probabilities = np.array(fit_vals) / sum(fit_vals)
-    for i in range(num_couples):
-        idx = np.random.choice(len(pop), 2, p=selection_probabilities)
-        couples[i] = (pop[idx[0]], pop[idx[1]])
+    return selection_probabilities
         
 import math
 
@@ -88,29 +85,63 @@ def selection_probability(mu, s, rank, method='linear'):
         c = mu / (1 - math.exp(-mu))  # Calculate the exponential ranking parameter 'c'
         return (1 - math.exp(-rank)) / c
         
-def selection_ranking(pop, fit_vals, num_couples, method='linear'):
-    # Ranking Selection (RS) has 2 variations: linear, exponential
-    couples = np.zeros((num_couples, 2))
-    selection_probabilities = [selection_probability(len(pop), 1.5, i, method=method) for i in range(len(pop))]
-    
-    for i in range(num_couples):
-        idx = np.random.choice(len(pop), 2, p=selection_probabilities)
-        couples[i] = (pop[idx[0]], pop[idx[1]])
+def selection_ranking(pop, fit_vals, ranking_var='linear'):
+    sorted_indices = np.argsort(fit_vals)[::-1]
+    selection_probabilities = [selection_probability(len(pop), 1.5, i, method=ranking_var) for i in range(len(pop))]
+    reordered_probabilities = [selection_probabilities[i] for i in sorted_indices]
 
-    return couples
+    return np.array(reordered_probabilities)
 
 
-def select_parents(pop, fit_vals, fps_var, fps_transpose, method="fps"):
+def select_parents(pop, fit_vals, fps_var="default", fps_transpose=10, ranking_var="exponential", sampling="sus", probabilities="fps"):
+    """
+    Parameters:
+    - pop: The population
+    - fit_vals: The fitness values of the current population
+    - fps_var: The chosen variation of the FPS methods (default, transpose, windowing, scaling)
+    - fps_transpose: The transpose value for the FPS transpose method (defualt = 10)
+    - ranking_var: The chosen variatio of the ranking methods (linear, exponential)
+    - sampling: The chosen sampling method (roulette, sus)
+    - probabilities: The chosen method for calculating the selection probabilities (fps, ranking, )
+    """
     num_couples = round(len(pop)/2)
+    couples = np.zeros((num_couples, 2, n_gen))
+    selection_probabilities = np.zeros((len(pop), 2))
     
-    if method == 'fps':
-        return selection_fps(pop, fit_vals, num_couples, fps_var, fps_transpose)
-    elif method == 'ranking':
-        return selection_ranking(pop, fit_vals)
+    min_fitness = np.min(fit_vals)
+    adjusted_fitness = fit_vals - min_fitness + 0.0000001
+    
+    if probabilities == 'fps':
+        selection_probabilities = selection_fps(adjusted_fitness, fps_var, fps_transpose)
+    elif probabilities == 'ranking':
+        selection_probabilities = selection_ranking(pop, adjusted_fitness, ranking_var='linear')
+            
+    if sampling == 'sus':
+        num_parents = num_couples * 2  # We select twice the number of parents since each couple has 2 parents
+        parents = np.zeros((num_parents, n_gen))
+        current_member = i = 0
+        r = np.random.uniform(0, 1 / num_parents)
+        cumulative_probabilities = np.cumsum(selection_probabilities)
         
+        while current_member < num_parents:
+            while r <= cumulative_probabilities[i]:
+                parents[current_member] = pop[i]
+                r += 1 / num_parents
+                current_member += 1
+            i += 1
+
+        couples = parents.reshape(num_couples, 2, 265)
+
+        return couples
+    else:
+        for i in range(num_couples):
+            idx = np.random.choice(len(pop), 2, p=selection_probabilities)
+            couples[i] = [pop[idx[0]], pop[idx[1]]]
         
-def create_offspring(pop, fitness):
-    couples = select_parents(pop, fitness)
+    return couples
+       
+def create_offspring(pop, fitness, probabilities, fps_var, fps_transpose, ranking_var, sampling):
+    couples = select_parents(pop, fitness, fps_var, fps_transpose, ranking_var, sampling, probabilities) #default, transpose, windowing, scaling
     for parents in couples:
         return
     
@@ -119,6 +150,7 @@ results = pd.DataFrame(columns=['gen', 'best', 'mean', 'std'])
 pop = initialize_population(npop)
 fitness_gen = evaluate(pop)
 results.loc[len(results)] = np.array([0, np.max(fitness_gen), np.mean(fitness_gen), np.std(fitness_gen)])
-create_offspring(pop, fitness_gen)
+create_offspring(pop, fitness_gen, probabilities="ranking", fps_var="scaling", fps_transpose = 10, ranking_var="exponential", sampling="sus")
+
 # for gen in range(1, gens+1):
 #     offspring = create_offspring(pop, fitness_gen)
