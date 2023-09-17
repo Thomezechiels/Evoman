@@ -207,7 +207,6 @@ else:
     ini_g = int(file_aux.readline())
     file_aux.close()
 
-
 # saves results for first pop
 file_aux  = open(experiment_name+'/results.txt','a')
 file_aux.write('\n\ngen best mean std')
@@ -259,7 +258,7 @@ for i in range(ini_g+1, gens):
         notimproved = 0
 
     best = np.argmax(fit_pop)
-    std  =  np.std(fit_pop)
+    std = np.std(fit_pop)
     mean = np.mean(fit_pop)
 
 

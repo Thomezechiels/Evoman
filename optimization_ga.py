@@ -56,22 +56,63 @@ def simulation(env,x):
 def evaluate(x):
     return np.array(list(map(lambda y: simulation(ENV, y), x)))
 
-def select_parents(pop, fit_vals):
-    num_couples = round(len(pop)/2) 
+def selection_fps(pop, fit_vals, num_couples, fps_var="default", fps_transpose=10):
+    # Fitness Proportional Selection (FPS) has 4 variations: default, transpose, windowing, scaling
+    couples = np.zeros(num_couples)
+    if fps_var == 'transpose':
+        fit_vals += fps_transpose
+    elif fps_var == 'windowing':
+        fit_vals -= np.min(fit_vals)
+    elif fps_var == 'scaling':
+        mean, std = np.mean(fit_vals), np.std(fit_vals)
+        fit_vals = np.array([max(f - (mean - 2*std),0) for f in fit_vals])
+        
     selection_probabilities = np.array(fit_vals) / sum(fit_vals)
-    couples = []
+    for i in range(num_couples):
+        idx = np.random.choice(len(pop), 2, p=selection_probabilities)
+        couples[i] = (pop[idx[0]], pop[idx[1]])
+        
+import math
 
-    for _ in range(num_couples):
-        parent1_idx = np.random.choice(len(pop), p=selection_probabilities)
-        parent2_idx = np.random.choice(len(pop), p=selection_probabilities)
-        couples.append((pop[parent1_idx], pop[parent2_idx]))
+def selection_probability(mu, s, rank, method='linear'):
+    if rank < 0 or rank >= mu:
+        raise ValueError("Rank must be between 0 and mu - 1")
+
+    if method == 'linear':
+        if not (1 < s <= 2):
+            raise ValueError("s must be between 1 < s <= 2")
+
+        return (2 - s) / mu + 2 * rank * (s - 1) / (mu * (mu - 1))
+
+    elif method == 'exponential':
+        c = mu / (1 - math.exp(-mu))  # Calculate the exponential ranking parameter 'c'
+        return (1 - math.exp(-rank)) / c
+        
+def selection_ranking(pop, fit_vals, num_couples, method='linear'):
+    # Ranking Selection (RS) has 2 variations: linear, exponential
+    couples = np.zeros((num_couples, 2))
+    selection_probabilities = [selection_probability(len(pop), 1.5, i, method=method) for i in range(len(pop))]
+    
+    for i in range(num_couples):
+        idx = np.random.choice(len(pop), 2, p=selection_probabilities)
+        couples[i] = (pop[idx[0]], pop[idx[1]])
 
     return couples
 
+
+def select_parents(pop, fit_vals, fps_var, fps_transpose, method="fps"):
+    num_couples = round(len(pop)/2)
+    
+    if method == 'fps':
+        return selection_fps(pop, fit_vals, num_couples, fps_var, fps_transpose)
+    elif method == 'ranking':
+        return selection_ranking(pop, fit_vals)
+        
+        
 def create_offspring(pop, fitness):
     couples = select_parents(pop, fitness)
     for parents in couples:
-        
+        return
     
     
 results = pd.DataFrame(columns=['gen', 'best', 'mean', 'std'])
