@@ -12,7 +12,7 @@ import glob, os
 
 experiment = 'optimization_test' # name of the experiment
 headless = True # True for not using visuals, false otherwise
-enemies = [8]
+enemies = [6]
 playermode = "ai"
 enemymode = "static"
 
@@ -28,7 +28,6 @@ if headless:
 
 if not os.path.exists(experiment):
     os.makedirs(experiment)
-
 
 # initializes simulation in individual evolution mode, for single static enemy.
 ENV = Environment(experiment_name=experiment,
@@ -52,6 +51,27 @@ def initialize_population(n):
 def simulation(env,x):
     f,p,e,t = env.play(pcont=x)
     return f
+
+# limits
+def check_bounds(x):
+    if x>ub_w:
+        return ub_w
+    elif x<lb_w:
+        return lb_w
+    else:
+        return x
+    
+# normalizes
+def norm(x, pfit_pop):
+
+    if ( max(pfit_pop) - min(pfit_pop) ) > 0:
+        x_norm = ( x - min(pfit_pop) )/( max(pfit_pop) - min(pfit_pop) )
+    else:
+        x_norm = 0
+
+    if x_norm <= 0:
+        x_norm = 0.0000000001
+    return x_norm
 
 def evaluate(x):
     return np.array(list(map(lambda y: simulation(ENV, y), x)))
@@ -139,18 +159,71 @@ def select_parents(pop, fit_vals, fps_var="default", fps_transpose=10, ranking_v
             couples[i] = [pop[idx[0]], pop[idx[1]]]
         
     return couples
+
+# crossover
+def crossover(p1, p2):
+
+    n_offspring = np.random.randint(1,3+1, 1)[0]
+    offspring = np.zeros( (n_offspring, n_gen) )
+
+    for f in range(0, n_offspring):
+
+        cross_prop = np.random.uniform(0,1)
+        offspring[f] = p1*cross_prop+p2*(1-cross_prop)
+
+        # mutation
+        for i in range(0,len(offspring[f])):
+            if np.random.uniform(0 ,1) <= mutation:
+                offspring[f][i] = offspring[f][i]+np.random.normal(0, 1)
+
+        offspring[f] = np.array(list(map(lambda y: check_bounds(y), offspring[f])))
+
+    return offspring
        
 def create_offspring(pop, fitness, probabilities, fps_var, fps_transpose, ranking_var, sampling):
     couples = select_parents(pop, fitness, fps_var, fps_transpose, ranking_var, sampling, probabilities) #default, transpose, windowing, scaling
+    total_offspring = np.zeros((0, n_gen))
     for parents in couples:
-        return
-    
+        offspring = crossover(parents[0], parents[1])
+        total_offspring = np.vstack((total_offspring, offspring))
+        
+    return total_offspring
     
 results = pd.DataFrame(columns=['gen', 'best', 'mean', 'std'])
 pop = initialize_population(npop)
 fitness_gen = evaluate(pop)
 results.loc[len(results)] = np.array([0, np.max(fitness_gen), np.mean(fitness_gen), np.std(fitness_gen)])
-create_offspring(pop, fitness_gen, probabilities="ranking", fps_var="scaling", fps_transpose = 10, ranking_var="exponential", sampling="sus")
-
-# for gen in range(1, gens+1):
-#     offspring = create_offspring(pop, fitness_gen)
+best_txt = ''
+for gen in range(1, gens+1):
+    print('Current generation:', gen)
+    offspring = create_offspring(pop, fitness_gen, probabilities="ranking", fps_var="scaling", fps_transpose = 10, ranking_var="exponential", sampling="sus")
+    fitness_offspring = evaluate(offspring)
+    pop = np.vstack((pop, offspring))
+    fitness_gen = np.append(fitness_gen, fitness_offspring)
+    
+    best_idx = np.argmax(fitness_gen) #best solution in generation
+    fitness_gen[best_idx] = float(evaluate(np.array([pop[best_idx] ]))[0]) # repeats best eval, for stability issues
+    best_sol = fitness_gen[best_idx]
+    best_txt = pop[best_idx]
+    
+    # selection
+    fitness_gen_cp = fitness_gen
+    fitness_gen_norm =  np.array(list(map(lambda y: norm(y,fitness_gen_cp), fitness_gen))) # avoiding negative probabilities, as fitness is ranges from negative numbers
+    probs = (fitness_gen_norm)/(fitness_gen_norm).sum()
+    chosen = np.random.choice(pop.shape[0], npop , p=probs, replace=False)
+    chosen = np.append(chosen[1:], best_idx)
+    pop = pop[chosen]
+    fitness_gen = fitness_gen[chosen]
+    
+    std = np.std(fitness_gen)
+    mean = np.mean(fitness_gen)
+    print('Scores:\nBest: {:.2f}, Mean: {:.2f}, Std: {:.2f}'.format(best_sol, mean, std))
+    
+    results.loc[len(results)] = np.array([gen, best_sol, mean, std])
+    
+np.savetxt(experiment+'/best.txt',best_txt)
+fim = time.time() # prints total execution time for experiment
+print( '\nExecution time: '+str(round((fim-ini)/60))+' minutes \n')
+print( '\nExecution time: '+str(round((fim-ini)))+' seconds \n')
+    
+    
