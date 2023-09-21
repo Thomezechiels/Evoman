@@ -9,7 +9,7 @@
 import sys
 
 from evoman.environment import Environment
-from demo_controller import player_controller, enemy_controller
+from controller import player_controller, enemy_controller
 
 # imports other libs
 import time

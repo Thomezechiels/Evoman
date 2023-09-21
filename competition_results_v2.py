@@ -7,7 +7,7 @@ from matplotlib.offsetbox import AnchoredText
 
 
 from evoman.environment import Environment
-from demo_controller import player_controller
+from controller import player_controller
 import numpy as np
 import pandas as pd
 import pickle as pkl

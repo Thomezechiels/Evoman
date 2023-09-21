@@ -10,12 +10,12 @@
 import sys, os
 
 from evoman.environment import Environment
-from demo_controller import player_controller
+from controller import player_controller
 
 # imports other libs
 import numpy as np
 
-experiment_name = 'optimization_test'
+experiment_name = 'GA_optimization'
 if not os.path.exists(experiment_name):
     os.makedirs(experiment_name)
 
