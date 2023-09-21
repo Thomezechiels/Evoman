@@ -33,13 +33,13 @@ env = Environment(experiment_name=experiment_name,
 
 
 # tests saved demo solutions for each enemy
-enemies = [8]
+enemies = [1,2,7]
 for en in enemies:
 
 	#Update the enemy
 	env.update_parameter('enemies',[en])
 
 	# Load specialist controller
-	sol = np.loadtxt('optimization_test/best_'+str(en)+'.txt')
+	sol = np.loadtxt('GA_optimization/best_'+str(en)+'.txt')
 	print('\n LOADING SAVED SPECIALIST SOLUTION FOR ENEMY '+str(en)+' \n')
 	env.play(sol)

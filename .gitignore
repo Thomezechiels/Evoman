@@ -2,6 +2,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+GA_optimization
+
 # Visual Studio Code
 .vscode/
 
