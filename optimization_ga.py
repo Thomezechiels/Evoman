@@ -39,6 +39,10 @@ def norm(x, pfit_pop):
         x_norm = 0.0000000001
     return x_norm
 
+def fitness_single(self):
+        return 0.2*(100 - self.get_enemylife()) + 0.8*self.get_playerlife() - 0.5 * np.log(self.get_time())
+        # return self.get_playerlife() - self.get_enemylife()
+
 def evaluate(env, x):
     return np.array(list(map(lambda y: simulation(env, y), x)))
 
@@ -50,7 +54,7 @@ def selection_fps(fit_vals, fps_var="default", fps_transpose=10):
         fit_vals -= np.min(fit_vals)
     elif fps_var == 'scaling':
         mean, std = np.mean(fit_vals), np.std(fit_vals)
-        fit_vals = np.array([max(f - (mean - 2*std),0) for f in fit_vals])
+        fit_vals = np.vectorize(lambda f: max(f - (mean - 2*std), 0))
         
     selection_probabilities = np.array(fit_vals) / sum(fit_vals)
     return selection_probabilities
@@ -129,18 +133,17 @@ def select_parents(pop, fit_vals, fps_var="default", fps_transpose=10, ranking_v
 # crossover
 def crossover(p1, p2):
 
-    n_offspring = np.random.randint(1,3+1, 1)[0]
-    offspring = np.zeros( (n_offspring, n_gen) )
+    n_offspring = np.random.randint(1,4)
+    offspring = np.zeros((n_offspring, n_gen))
 
     for f in range(0, n_offspring):
-
         cross_prop = np.random.uniform(0,1)
         offspring[f] = p1*cross_prop+p2*(1-cross_prop)
-
+  
         # mutation
         for i in range(0,len(offspring[f])):
             if np.random.uniform(0 ,1) <= mutation:
-                offspring[f][i] = offspring[f][i]+np.random.normal(0, 1)
+                offspring[f][i] = offspring[f][i]+np.random.normal(0, 0.1)
 
         offspring[f] = np.array(list(map(lambda y: check_bounds(y), offspring[f])))
 
@@ -155,48 +158,48 @@ def create_offspring(pop, fitness, probabilities, fps_var, fps_transpose, rankin
         
     return total_offspring
 
-import numpy as np
-
-import numpy as np
-
-def exchange_information(subpops, migration_rate=0.1):
+def exchange_information(subpops, fitness_subpops, migration_rate=0.1):
     n_subpops = len(subpops)
     n_individuals = np.array([len(s) for s in subpops])
-
     n_to_migrate = (migration_rate * n_individuals).astype(int)
+    migrations = [[] for _ in range(n_subpops)]
+    migrations_fitness = [[] for _ in range(n_subpops)]
+    
+    for idx, subpop in enumerate(subpops):
+        migrants_idx = np.random.choice(len(subpop), n_to_migrate[idx], replace=False)
+        migrants = subpop[migrants_idx]
+        migrants_fitness = fitness_subpops[idx][migrants_idx]
+        for i, migrant in enumerate(migrants):
+            i_adjusted = (i + idx) % n_subpops
+            migrations[i_adjusted].append(migrant)
+            migrations_fitness[i_adjusted].append(migrants_fitness[i])
+        subpops[idx] = np.delete(subpop, migrants_idx, axis=0)
+        fitness_subpops[idx] = np.delete(fitness_subpops[idx], migrants_idx, axis=0)
+        
+    for idx, subpop in enumerate(subpops):
+        if len(migrations[idx]) > 0:
+            subpops[idx] = np.append(subpop, migrations[idx], axis=0)
+            fitness_subpops[idx] = np.append(fitness_subpops[idx], migrations_fitness[idx], axis=0)
+        
+def print_size_subpops(subpops):
+    print('Subpops sizes:')
+    for idx, pop in enumerate(subpops):
+        print('Subpop {}: {}'.format(idx, len(pop)))
 
-    # Perform migration from each subpopulation to others
-    for subpop in subpops:
-        n_migrate = round(migration_rate * len(subpop))
-        migration_idx = np.random.choice(len(subpop), n_migrate, replace=False)
-        migrants = subpop[migration_idx]
-        subpop = np.delete(subpop, migration_idx, axis=0)
-
-        immigrant_idx = np.random.choice(n_individuals - 1, n_migrate, replace=True)
-        immigrant_idx[immigrant_idx >= i] += 1  # Adjust indices to exclude the current subpopulation
-        for j, num_receive in enumerate(np.bincount(immigrant_idx)):
-            if num_receive > 0:
-                subpops[j] = np.vstack((subpops[j], migrants[:num_receive]))
-                migrants = migrants[num_receive:]
-
-    return subpops
-
-
-def train_specialist(env, algorithm, enemies, experiment):
+def train_specialist_GA(env, enemies, experiment):
     for enemy in enemies:
         env.update_parameter('enemies',[enemy])
-        # initializes simulation in individual evolution mode, for single static enemy.
-        ini = time.time()  # sets time marker
-        last_best = 0
-            
+        ini = time.time()
         results = pd.DataFrame(columns=['gen', 'best', 'mean', 'std'])
+        
         pop = initialize_population(npop)
         fitness_gen = evaluate(env, pop)
         results.loc[len(results)] = np.array([0, np.max(fitness_gen), np.mean(fitness_gen), np.std(fitness_gen)])
         best_txt = ''
+        
         for gen in range(1, gens+1):
             print('Current generation:', gen)
-            offspring = create_offspring(pop, fitness_gen, probabilities="ranking", fps_var="scaling", fps_transpose = 10, ranking_var="exponential", sampling="sus")
+            offspring = create_offspring(pop, fitness_gen, probabilities="ranking", fps_var="scaling", fps_transpose = 10, ranking_var="linear", sampling="sus")
             fitness_offspring = evaluate(env, offspring)
             pop = np.vstack((pop, offspring))
             fitness_gen = np.append(fitness_gen, fitness_offspring)
@@ -210,6 +213,7 @@ def train_specialist(env, algorithm, enemies, experiment):
             fitness_gen_cp = fitness_gen
             fitness_gen_norm =  np.array(list(map(lambda y: norm(y,fitness_gen_cp), fitness_gen))) # avoiding negative probabilities, as fitness is ranges from negative numbers
             probs = (fitness_gen_norm)/(fitness_gen_norm).sum()
+            
             chosen = np.random.choice(pop.shape[0], npop , p=probs, replace=False)
             chosen = np.append(chosen[1:], best_idx)
             pop = pop[chosen]
@@ -221,14 +225,70 @@ def train_specialist(env, algorithm, enemies, experiment):
             
             results.loc[len(results)] = np.array([gen, best_sol, mean, std])
             
-    np.savetxt(experiment+'/best_'+ str(enemy) +'.txt',best_txt)
-    fim = time.time() # prints total execution time for experiment
-    print( '\nExecution time: '+str(round((fim-ini)/60))+' minutes \n')
-    print( '\nExecution time: '+str(round((fim-ini)))+' seconds \n')
+        np.savetxt(experiment+'/best_'+ str(enemy) +'.txt',best_txt)
+        fim = time.time() # prints total execution time for experiment
+        print( '\nExecution time: '+str(round((fim-ini)/60))+' minutes \n')
+        print( '\nExecution time: '+str(round((fim-ini)))+' seconds \n')
+    
+def train_specialist_DGA(env, enemies, experiment, n_subpops):
+    for enemy in enemies:
+        env.update_parameter('enemies',[enemy])
+        ini = time.time() 
+        results = pd.DataFrame(columns=['gen', 'best', 'mean', 'std'])
+        
+        pop = initialize_population(npop)
+        subpops = np.array_split(pop, n_subpops, axis=0)
+        fitness_subpops = [evaluate(env, x) for x in subpops]
+        fitness_gen = np.concatenate(fitness_subpops)
+        results.loc[len(results)] = np.array([0, np.max(fitness_gen), np.mean(fitness_gen), np.std(fitness_gen)])
+        best_txt = ''
+        
+        for gen in range(1, gens+1):
+            print('Current generation:', gen)
+            
+            for idx, subpop in enumerate(subpops):
+                sub_pop_size = len(subpop)
+                fitness_subpop = fitness_subpops[idx]
+                exchange_information(subpops, fitness_subpops, migration_rate=migration)
+                offspring = create_offspring(subpop, fitness_subpop, probabilities="ranking", fps_var="scaling", fps_transpose = 10, ranking_var="exponential", sampling="sus")
+                fitness_offspring = evaluate(env, offspring)
+                cur_pop = np.vstack((subpop, offspring))
+                fitness_subpop = np.append(fitness_subpop, fitness_offspring)
+                best_idx = np.argmax(fitness_subpop) #best solution in generation
+                fitness_subpop[best_idx] = float(evaluate(env, np.array([cur_pop[best_idx] ]))[0]) # repeats best eval
 
-experiment = 'GA_optimization' # name of the experiment
+                fitness_gen_cp = fitness_subpop
+                fitness_gen_norm =  np.array(list(map(lambda y: norm(y,fitness_gen_cp), fitness_subpop))) # avoiding negative probabilities, as fitness is ranges from negative numbers
+                probs = (fitness_gen_norm)/(fitness_gen_norm).sum()
+                chosen = np.random.choice(cur_pop.shape[0], sub_pop_size , p=probs, replace=False)
+                chosen = np.append(chosen[1:], best_idx)
+                cur_pop = cur_pop[chosen]
+                fitness_subpop = fitness_subpop[chosen]
+                fitness_subpops[idx] = fitness_subpop
+                subpops[idx] = cur_pop
+                
+                std = np.std(fitness_subpop)
+                mean = np.mean(fitness_subpop)
+                best = np.max(fitness_subpop)
+                print('Generation: {}\nSubpop: {}\nBest: {:.2f}, Mean: {:.2f}, Std: {:.2f}'.format(gen, idx, best, mean, std))
+            
+            fitness_gen = np.concatenate(fitness_subpops)
+            pop = np.concatenate(subpops)
+            best_txt = pop[np.argmax(fitness_gen)]
+            best = np.max(fitness_gen)
+            mean = np.mean(fitness_gen)
+            std = np.std(fitness_gen)
+            results.loc[len(results)] = np.array([gen, best, mean, std])
+            
+        print('Final eval best solution:', simulation(env, best_txt))    
+        np.savetxt(experiment+'/best_'+ str(enemy) +'.txt',best_txt)
+        fim = time.time() # prints total execution time for experiment
+        print( '\nExecution time: '+str(round((fim-ini)/60))+' minutes \n')
+        print( '\nExecution time: '+str(round((fim-ini)))+' seconds \n')
+
+experiment = 'DGA_optimization' # name of the experiment
 headless = True # True for not using visuals, false otherwise
-enemies = [1,2,7]
+enemies = [2]
 playermode = "ai"
 enemymode = "static"
 
@@ -237,7 +297,9 @@ n_hidden_nodes = 10 # size hidden layer NN
 run_mode = 'train' # train or test
 npop = 100 # size of population
 gens = 50 # max number of generations
-mutation = 0.1 # mutation probability 
+mutation = 0.1 # mutation probability
+migration = 0.04
+n_subpops = 4
 
 if headless:
     os.environ["SDL_VIDEODRIVER"] = "dummy"
@@ -254,10 +316,15 @@ ENV = Environment(experiment_name=experiment,
                 speed="fastest",
                 visuals=False)
 
+import types
+
+ENV.fitness_single = types.MethodType(fitness_single, ENV)
+
+
 ENV.state_to_log() # checks environment state
 n_gen = (ENV.get_num_sensors()+1)*n_hidden_nodes + (n_hidden_nodes+1)*5 #size of weight vector    
   
-train_specialist(ENV, "GA", enemies, experiment)      
+train_specialist_DGA(ENV, enemies, experiment, n_subpops)      
 
     
     
