@@ -1,5 +1,4 @@
 import sys
-
 from evoman.environment import Environment
 from controller import player_controller
 
@@ -347,7 +346,7 @@ def train_specialist_DGA(env, enemies, experiment, n_subpops, test=False):
                 std = np.std(fitness_subpop)
                 mean = np.mean(fitness_subpop)
                 best = np.max(fitness_subpop)
-                print('Generation: {}\nSubpop: {}\nBest: {:.2f}, Mean: {:.2f}, Std: {:.2f}'.format(gen, idx, best, mean, std))
+                # print('Generation: {}\nSubpop: {}\nBest: {:.2f}, Mean: {:.2f}, Std: {:.2f}'.format(gen, idx, best, mean, std))
             
             fitness_gen = np.concatenate(fitness_subpops)
             pop = np.concatenate(subpops)
@@ -378,7 +377,7 @@ npop = 100 # size of population
 gens = 5 # max number of generations
 mutation = 0.1 # mutation probability
 migration = 0.04
-n_subpops = 4
+n_subpops = 8
 
 if headless:
     os.environ["SDL_VIDEODRIVER"] = "dummy"
@@ -403,7 +402,8 @@ ENV.fitness_single = types.MethodType(fitness_single, ENV)
 ENV.state_to_log() # checks environment state
 n_gen = (ENV.get_num_sensors()+1)*n_hidden_nodes + (n_hidden_nodes+1)*5 #size of weight vector    
   
-train_specialist_DGA(ENV, enemies, experiment, n_subpops, test=True)       
+# train_specialist_DGA(ENV, enemies, experiment, n_subpops, test=True)
+train_specialist_GA(ENV, enemies, experiment, test=True)              
 
     
     
