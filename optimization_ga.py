@@ -9,6 +9,8 @@ import pandas as pd
 from math import fabs,sqrt
 from scipy.stats import wasserstein_distance
 import glob, os
+import random
+import matplotlib.pyplot as plt
 
 def initialize_population(n):
     return np.random.uniform(lb_w, ub_w, (n, n_gen))
@@ -197,13 +199,8 @@ def calculate_diversity(pop):
         for j in range(i + 1, len(histograms)):
             emd = wasserstein_distance(histograms[i], histograms[j])
             total_diversity += emd
-
-    # If you want the average diversity, divide by the number of pairwise comparisons
-    average_diversity = total_diversity / (len(pop) * (len(pop) - 1) / 2)
-
-    # Alternatively, you can keep the total diversity as a sum of pairwise distances
-    print("Total Diversity (Sum of Wasserstein Distances):", total_diversity)
-    print("Average Diversity (Average Wasserstein Distance):", average_diversity)
+            
+    return total_diversity / (len(pop) * (len(pop) - 1) / 2)
 
 def round_robin(pop, fit_pop, tournament = "random"):
     num_individuals = len(pop)
@@ -232,10 +229,10 @@ def round_robin(pop, fit_pop, tournament = "random"):
     
     return robin_scores
 
-import random
-def select_robin(pop, scores, gen_size = 100):
+def select_robin(scores, gen_size):
     total_scores = sum(scores)
-    probabilities = [score / total_scores for score in scores]
+    print(scores)
+    probabilities = scores / total_scores
     
     selected_indices = []
     for _ in range(gen_size):
@@ -250,15 +247,30 @@ def select_robin(pop, scores, gen_size = 100):
 
     return selected_indices
 
+def plot_diversity(results):
+    generation = results['gen']
+    diversity = results['diversity']
+
+    # Create a line plot
+    plt.figure(figsize=(10, 6))  # Adjust the figure size as needed
+    plt.plot(generation, diversity, marker='o', linestyle='-')
+    plt.title('Diversity Over Generations')
+    plt.xlabel('Generation')
+    plt.ylabel('Diversity')
+    plt.grid(True)
+
+    # Show the plot
+    plt.show()
+
 def train_specialist_GA(env, enemies, experiment, test=False):
     for enemy in enemies:
         env.update_parameter('enemies',[enemy])
         ini = time.time()
-        results = pd.DataFrame(columns=['gen', 'best', 'mean', 'std'])
+        results = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'diversity'])
         
         pop = initialize_population(npop)
         fitness_gen = evaluate(env, pop)
-        results.loc[len(results)] = np.array([0, np.max(fitness_gen), np.mean(fitness_gen), np.std(fitness_gen)])
+        results.loc[len(results)] = np.array([0, np.max(fitness_gen), np.mean(fitness_gen), np.std(fitness_gen), calculate_diversity(pop)])
         best_txt = ''
         
         for gen in range(1, gens+1):
@@ -274,32 +286,23 @@ def train_specialist_GA(env, enemies, experiment, test=False):
             best_txt = pop[best_idx]
             
             #survival selection 
-            scores = round_robin(pop, fitness_gen, tournament = "random")    
-            selected = select_robin(pop, scores, gen_size = 100)
-            pop = [pop[i] for i in selected]
-            fitness_gen = [fitness_gen[i] for i in selected]
-
-            """
-            fitness_gen_cp = fitness_gen
-            fitness_gen_norm =  np.array(list(map(lambda y: norm(y,fitness_gen_cp), fitness_gen))) # avoiding negative probabilities, as fitness is ranges from negative numbers
-            probs = (fitness_gen_norm)/(fitness_gen_norm).sum()
-            
-            chosen = np.random.choice(pop.shape[0], npop , p=probs, replace=False)
-            chosen = np.append(chosen[1:], best_idx)
-            pop = pop[chosen]
-            fitness_gen = fitness_gen[chosen]
-            """
-
-
-            
+            scores = np.array(round_robin(pop, fitness_gen, tournament = "random"))    
+            selected = np.array(select_robin(scores, gen_size = npop))
+            selected = np.append(selected[1:], best_idx)
+            pop = pop[selected]
+            fitness_gen = fitness_gen[selected]
+           
             std = np.std(fitness_gen)
             mean = np.mean(fitness_gen)
-            print('Scores:\nBest: {:.2f}, Mean: {:.2f}, Std: {:.2f}'.format(best_sol, mean, std))
+            div = calculate_diversity(pop)
+            print('Scores:\nBest: {:.2f}, Mean: {:.2f}, Std: {:.2f}\nDiversity: {:.4f}'.format(best_sol, mean, std, div))
             
-            results.loc[len(results)] = np.array([gen, best_sol, mean, std])
+            
+            results.loc[len(results)] = np.array([gen, best_sol, mean, std, div])
             
         print('Final eval best solution:', simulation(env, best_txt))    
         calculate_diversity(pop)
+        plot_diversity(results)
         if not test:
             np.savetxt(experiment+'/best_'+ str(enemy) +'.txt',best_txt)
         fim = time.time() # prints total execution time for experiment
@@ -310,13 +313,13 @@ def train_specialist_DGA(env, enemies, experiment, n_subpops, test=False):
     for enemy in enemies:
         env.update_parameter('enemies',[enemy])
         ini = time.time() 
-        results = pd.DataFrame(columns=['gen', 'best', 'mean', 'std'])
+        results = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'diversity'])
         
         pop = initialize_population(npop)
         subpops = np.array_split(pop, n_subpops, axis=0)
         fitness_subpops = [evaluate(env, x) for x in subpops]
         fitness_gen = np.concatenate(fitness_subpops)
-        results.loc[len(results)] = np.array([0, np.max(fitness_gen), np.mean(fitness_gen), np.std(fitness_gen)])
+        results.loc[len(results)] = np.array([0, np.max(fitness_gen), np.mean(fitness_gen), np.std(fitness_gen), calculate_diversity(pop)])
         best_txt = ''
         
         for gen in range(1, gens+1):
@@ -333,13 +336,21 @@ def train_specialist_DGA(env, enemies, experiment, n_subpops, test=False):
                 best_idx = np.argmax(fitness_subpop) #best solution in generation
                 fitness_subpop[best_idx] = float(evaluate(env, np.array([cur_pop[best_idx] ]))[0]) # repeats best eval
 
-                fitness_gen_cp = fitness_subpop
-                fitness_gen_norm =  np.array(list(map(lambda y: norm(y,fitness_gen_cp), fitness_subpop))) # avoiding negative probabilities, as fitness is ranges from negative numbers
-                probs = (fitness_gen_norm)/(fitness_gen_norm).sum()
-                chosen = np.random.choice(cur_pop.shape[0], sub_pop_size , p=probs, replace=False)
-                chosen = np.append(chosen[1:], best_idx)
-                cur_pop = cur_pop[chosen]
-                fitness_subpop = fitness_subpop[chosen]
+                
+                scores = np.array(round_robin(cur_pop, fitness_subpop, tournament = "random"))    
+                selected = np.array(select_robin(scores, gen_size = sub_pop_size))
+                selected = np.append(selected[1:], best_idx)
+                # print(selected)
+                cur_pop = cur_pop[selected]
+                fitness_subpop = fitness_subpop[selected]
+                
+                # fitness_gen_cp = fitness_subpop
+                # fitness_gen_norm =  np.array(list(map(lambda y: norm(y,fitness_gen_cp), fitness_subpop))) # avoiding negative probabilities, as fitness is ranges from negative numbers
+                # probs = (fitness_gen_norm)/(fitness_gen_norm).sum()
+                # chosen = np.random.choice(cur_pop.shape[0], sub_pop_size , p=probs, replace=False)
+                # chosen = np.append(chosen[1:], best_idx)
+                # cur_pop = cur_pop[chosen]
+                # fitness_subpop = fitness_subpop[chosen]
                 fitness_subpops[idx] = fitness_subpop
                 subpops[idx] = cur_pop
                 
@@ -347,17 +358,22 @@ def train_specialist_DGA(env, enemies, experiment, n_subpops, test=False):
                 mean = np.mean(fitness_subpop)
                 best = np.max(fitness_subpop)
                 # print('Generation: {}\nSubpop: {}\nBest: {:.2f}, Mean: {:.2f}, Std: {:.2f}'.format(gen, idx, best, mean, std))
-            
+                
             fitness_gen = np.concatenate(fitness_subpops)
             pop = np.concatenate(subpops)
             best_txt = pop[np.argmax(fitness_gen)]
             best = np.max(fitness_gen)
             mean = np.mean(fitness_gen)
             std = np.std(fitness_gen)
-            results.loc[len(results)] = np.array([gen, best, mean, std])
+            div = calculate_diversity(pop)
+            print('Generation: {}, Diversity: {}'.format(gen, div))
+            results.loc[len(results)] = np.array([gen, best, mean, std, div])
             
         print('Final eval best solution:', simulation(env, best_txt))
-        calculate_diversity(pop)    
+        
+        div = calculate_diversity(pop)   
+        plot_diversity(results)
+        print('Average diversity final generation: {}'.format(div)) 
         if not test:
             np.savetxt(experiment+'/best_'+ str(enemy) +'.txt',best_txt)
         fim = time.time() # prints total execution time for experiment
@@ -374,7 +390,7 @@ lb_w, ub_w = -1, 1 # lower and ubber bound weights NN
 n_hidden_nodes = 10 # size hidden layer NN
 run_mode = 'train' # train or test
 npop = 100 # size of population
-gens = 5 # max number of generations
+gens = 50 # max number of generations
 mutation = 0.1 # mutation probability
 migration = 0.04
 n_subpops = 8
@@ -402,8 +418,8 @@ ENV.fitness_single = types.MethodType(fitness_single, ENV)
 ENV.state_to_log() # checks environment state
 n_gen = (ENV.get_num_sensors()+1)*n_hidden_nodes + (n_hidden_nodes+1)*5 #size of weight vector    
   
-# train_specialist_DGA(ENV, enemies, experiment, n_subpops, test=True)
-train_specialist_GA(ENV, enemies, experiment, test=True)              
+train_specialist_DGA(ENV, enemies, experiment, n_subpops, test=True)
+# train_specialist_GA(ENV, enemies, experiment, test=True)              
 
     
     
