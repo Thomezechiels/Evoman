@@ -6,7 +6,9 @@
 # or even a full network structure (ex.: from NEAT).
 from evoman.controller import Controller
 import numpy as np
+import pandas as pd
 
+#moves = np.array([]).reshape(0,5)
 
 def sigmoid_activation(x):
 	return 1./(1.+np.exp(-x))
@@ -80,6 +82,9 @@ class player_controller(Controller):
 		else:
 			release = 0
 
+		#global moves 
+		#moves = np.vstack([moves, np.array([left, right, jump, shoot, release])])
+		
 		return [left, right, jump, shoot, release]
 
 
@@ -136,6 +141,6 @@ class enemy_controller(Controller):
 		if output[3] > 0.5:
 			attack4 = 1
 		else:
-			attack4 = 0
-
+			attack4 = 0	
+		
 		return [attack1, attack2, attack3, attack4]

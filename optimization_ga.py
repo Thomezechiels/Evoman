@@ -206,6 +206,50 @@ def calculate_diversity(pop):
     print("Total Diversity (Sum of Wasserstein Distances):", total_diversity)
     print("Average Diversity (Average Wasserstein Distance):", average_diversity)
 
+def round_robin(pop, fit_pop, tournament = "random"):
+    num_individuals = len(pop)
+    robin_scores = [0] * num_individuals
+    
+    if tournament == "random":
+        for i in range(num_individuals):
+            for _ in range(10):
+                result_i = fit_pop[i]
+                result_j = fit_pop[np.random.randint(0,pop.shape[0], 1)]
+                
+                if result_i > result_j:
+                    robin_scores[i] += 1
+
+    else:
+        for i in range(num_individuals):
+            for j in range(i+1, num_individuals):
+                result_i = fit_pop[i]
+                result_j = fit_pop[j]
+                
+                if result_i > result_j:
+                    robin_scores[i] += 1
+                elif result_i < result_j:
+                    robin_scores[j] += 1
+                # In case of a tie, no points are awarded
+    
+    return robin_scores
+
+import random
+def select_robin(pop, scores, gen_size = 100):
+    total_scores = sum(scores)
+    probabilities = [score / total_scores for score in scores]
+    
+    selected_indices = []
+    for _ in range(gen_size):
+        rand_num = random.uniform(0, 1)
+        cumulative_prob = 0
+        
+        for i, prob in enumerate(probabilities):
+            cumulative_prob += prob
+            if cumulative_prob >= rand_num:
+                selected_indices.append(i)
+                break
+
+    return selected_indices
 
 def train_specialist_GA(env, enemies, experiment, test=False):
     for enemy in enemies:
@@ -230,7 +274,13 @@ def train_specialist_GA(env, enemies, experiment, test=False):
             best_sol = fitness_gen[best_idx]
             best_txt = pop[best_idx]
             
-            # selection
+            #survival selection 
+            scores = round_robin(pop, fitness_gen, tournament = "random")    
+            selected = select_robin(pop, scores, gen_size = 100)
+            pop = [pop[i] for i in selected]
+            fitness_gen = [fitness_gen[i] for i in selected]
+
+            """
             fitness_gen_cp = fitness_gen
             fitness_gen_norm =  np.array(list(map(lambda y: norm(y,fitness_gen_cp), fitness_gen))) # avoiding negative probabilities, as fitness is ranges from negative numbers
             probs = (fitness_gen_norm)/(fitness_gen_norm).sum()
@@ -239,6 +289,9 @@ def train_specialist_GA(env, enemies, experiment, test=False):
             chosen = np.append(chosen[1:], best_idx)
             pop = pop[chosen]
             fitness_gen = fitness_gen[chosen]
+            """
+
+
             
             std = np.std(fitness_gen)
             mean = np.mean(fitness_gen)
@@ -350,7 +403,7 @@ ENV.fitness_single = types.MethodType(fitness_single, ENV)
 ENV.state_to_log() # checks environment state
 n_gen = (ENV.get_num_sensors()+1)*n_hidden_nodes + (n_hidden_nodes+1)*5 #size of weight vector    
   
-train_specialist_DGA(ENV, enemies, experiment, n_subpops, test=True)      
+train_specialist_DGA(ENV, enemies, experiment, n_subpops, test=True)       
 
     
     
