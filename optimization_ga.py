@@ -3,12 +3,17 @@ import sys
 from evoman.environment import Environment
 from controller import player_controller
 
+
 # imports other libs
 import time
 import numpy as np
 import pandas as pd
 from math import fabs,sqrt
 import glob, os
+
+#import warnings
+# Set the warning level to 'ignore'
+#warnings.simplefilter("ignore")
 
 def initialize_population(n):
     return np.random.uniform(lb_w, ub_w, (n, n_gen))
@@ -337,6 +342,7 @@ def train_specialist_DGA(env, enemies, experiment, n_subpops):
             mean = np.mean(fitness_gen)
             std = np.std(fitness_gen)
             results.loc[len(results)] = np.array([gen, best, mean, std])
+    
             
         print('Final eval best solution:', simulation(env, best_txt))    
         np.savetxt(experiment+'/best_'+ str(enemy) +'.txt',best_txt)
@@ -346,7 +352,7 @@ def train_specialist_DGA(env, enemies, experiment, n_subpops):
 
 experiment = 'GA_optimization' # name of the experiment
 headless = True # True for not using visuals, false otherwise
-enemies = [2]
+enemies = [1]
 playermode = "ai"
 enemymode = "static"
 
@@ -358,6 +364,8 @@ gens = 30 # max number of generations
 mutation = 0.1 # mutation probability
 migration = 0.04
 n_subpops = 4
+
+
 
 if headless:
     os.environ["SDL_VIDEODRIVER"] = "dummy"
@@ -383,7 +391,9 @@ ENV.state_to_log() # checks environment state
 n_gen = (ENV.get_num_sensors()+1)*n_hidden_nodes + (n_hidden_nodes+1)*5 #size of weight vector    
   
 #train_specialist_DGA(ENV, enemies, experiment, n_subpops)  
-train_specialist_GA(ENV, enemies, experiment)    
+train_specialist_GA(ENV, enemies, experiment)   
 
+#from controller import moves 
+#print(moves)
     
     

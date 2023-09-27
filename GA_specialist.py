@@ -32,7 +32,7 @@ env = Environment(experiment_name=experiment_name,
 				  visuals=True)
 
 # tests saved demo solutions for each enemy
-enemies = [2]
+enemies = [1]
 for en in enemies:
 
 	#Update the enemy
