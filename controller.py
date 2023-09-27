@@ -80,6 +80,7 @@ class player_controller(Controller):
 		else:
 			release = 0
 
+		#print([left, right, jump, shoot, release])
 		return [left, right, jump, shoot, release]
 
 

@@ -15,7 +15,7 @@ from controller import player_controller
 # imports other libs
 import numpy as np
 
-experiment_name = 'DGA_optimization'
+experiment_name = 'GA_optimization'
 if not os.path.exists(experiment_name):
     os.makedirs(experiment_name)
 

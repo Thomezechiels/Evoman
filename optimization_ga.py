@@ -40,7 +40,8 @@ def norm(x, pfit_pop):
     return x_norm
 
 def fitness_single(self):
-        return 0.2*(100 - self.get_enemylife()) + 0.8*self.get_playerlife() - 0.5 * np.log(self.get_time())
+        return 0.9*(100 - self.get_enemylife()) + 0.1*self.get_playerlife() - np.log(self.get_time())
+        
         # return self.get_playerlife() - self.get_enemylife()
 
 def evaluate(env, x):
@@ -186,6 +187,35 @@ def print_size_subpops(subpops):
     for idx, pop in enumerate(subpops):
         print('Subpop {}: {}'.format(idx, len(pop)))
 
+
+def round_robin(pop, fit_pop, tournament = "random"):
+    num_individuals = len(pop)
+    robin_scores = [0] * num_individuals
+    
+    if tournament == "random":
+        for i in range(num_individuals):
+            for _ in range(10):
+                result_i = fit_pop[i]
+                result_j = fit_pop[np.random.randint(0,pop.shape[0], 1)]
+                
+                if result_i > result_j:
+                    robin_scores[i] += 1
+
+    else:
+        for i in range(num_individuals):
+            for j in range(i+1, num_individuals):
+                result_i = fit_pop[i]
+                result_j = fit_pop[j]
+                
+                if result_i > result_j:
+                    robin_scores[i] += 1
+                elif result_i < result_j:
+                    robin_scores[j] += 1
+                # In case of a tie, no points are awarded
+    top_indices = sorted(range(len(robin_scores)), key=lambda i: robin_scores[i], reverse=True)[:100]
+    
+    return top_indices
+
 def train_specialist_GA(env, enemies, experiment):
     for enemy in enemies:
         env.update_parameter('enemies',[enemy])
@@ -200,8 +230,10 @@ def train_specialist_GA(env, enemies, experiment):
         for gen in range(1, gens+1):
             print('Current generation:', gen)
             offspring = create_offspring(pop, fitness_gen, probabilities="ranking", fps_var="scaling", fps_transpose = 10, ranking_var="linear", sampling="sus")
+            print(len(offspring))
             fitness_offspring = evaluate(env, offspring)
             pop = np.vstack((pop, offspring))
+            print(len(pop))
             fitness_gen = np.append(fitness_gen, fitness_offspring)
             
             best_idx = np.argmax(fitness_gen) #best solution in generation
@@ -209,7 +241,12 @@ def train_specialist_GA(env, enemies, experiment):
             best_sol = fitness_gen[best_idx]
             best_txt = pop[best_idx]
             
-            # selection
+            #survival selection 
+            top100 = round_robin(pop, fitness_gen, tournament = "random")    
+            pop = [pop[i] for i in top100]
+            fitness_gen = fitness_gen[top100]
+
+            """
             fitness_gen_cp = fitness_gen
             fitness_gen_norm =  np.array(list(map(lambda y: norm(y,fitness_gen_cp), fitness_gen))) # avoiding negative probabilities, as fitness is ranges from negative numbers
             probs = (fitness_gen_norm)/(fitness_gen_norm).sum()
@@ -218,6 +255,9 @@ def train_specialist_GA(env, enemies, experiment):
             chosen = np.append(chosen[1:], best_idx)
             pop = pop[chosen]
             fitness_gen = fitness_gen[chosen]
+            """
+
+
             
             std = np.std(fitness_gen)
             mean = np.mean(fitness_gen)
@@ -286,7 +326,7 @@ def train_specialist_DGA(env, enemies, experiment, n_subpops):
         print( '\nExecution time: '+str(round((fim-ini)/60))+' minutes \n')
         print( '\nExecution time: '+str(round((fim-ini)))+' seconds \n')
 
-experiment = 'DGA_optimization' # name of the experiment
+experiment = 'GA_optimization' # name of the experiment
 headless = True # True for not using visuals, false otherwise
 enemies = [2]
 playermode = "ai"
@@ -296,7 +336,7 @@ lb_w, ub_w = -1, 1 # lower and ubber bound weights NN
 n_hidden_nodes = 10 # size hidden layer NN
 run_mode = 'train' # train or test
 npop = 100 # size of population
-gens = 50 # max number of generations
+gens = 20 # max number of generations
 mutation = 0.1 # mutation probability
 migration = 0.04
 n_subpops = 4
@@ -324,7 +364,8 @@ ENV.fitness_single = types.MethodType(fitness_single, ENV)
 ENV.state_to_log() # checks environment state
 n_gen = (ENV.get_num_sensors()+1)*n_hidden_nodes + (n_hidden_nodes+1)*5 #size of weight vector    
   
-train_specialist_DGA(ENV, enemies, experiment, n_subpops)      
+#train_specialist_DGA(ENV, enemies, experiment, n_subpops)  
+train_specialist_GA(ENV, enemies, experiment)    
 
     
     
