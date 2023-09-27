@@ -40,7 +40,7 @@ def norm(x, pfit_pop):
     return x_norm
 
 def fitness_single(self):
-        return 0.2*(100 - self.get_enemylife()) + 0.8*self.get_playerlife() - 0.5 * np.log(self.get_time())
+        return 0.7*(100 - self.get_enemylife()) + 0.3*self.get_playerlife() - 0.5 * np.log(self.get_time())
         # return self.get_playerlife() - self.get_enemylife()
 
 def evaluate(env, x):
@@ -288,7 +288,7 @@ def train_specialist_DGA(env, enemies, experiment, n_subpops):
 
 experiment = 'DGA_optimization' # name of the experiment
 headless = True # True for not using visuals, false otherwise
-enemies = [2]
+enemies = [7]
 playermode = "ai"
 enemymode = "static"
 
