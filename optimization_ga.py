@@ -8,6 +8,7 @@ import time
 import numpy as np
 import pandas as pd
 from math import fabs,sqrt
+from scipy.stats import wasserstein_distance
 import glob, os
 
 def initialize_population(n):
@@ -185,8 +186,28 @@ def print_size_subpops(subpops):
     print('Subpops sizes:')
     for idx, pop in enumerate(subpops):
         print('Subpop {}: {}'.format(idx, len(pop)))
+        
+def calculate_diversity(pop):
+    histograms = [w / w.sum() for w in pop]
 
-def train_specialist_GA(env, enemies, experiment):
+    # Calculate diversity using Wasserstein distance
+    total_diversity = 0.0
+
+    # Calculate pairwise Wasserstein distances and sum them up
+    for i in range(len(histograms)):
+        for j in range(i + 1, len(histograms)):
+            emd = wasserstein_distance(histograms[i], histograms[j])
+            total_diversity += emd
+
+    # If you want the average diversity, divide by the number of pairwise comparisons
+    average_diversity = total_diversity / (len(pop) * (len(pop) - 1) / 2)
+
+    # Alternatively, you can keep the total diversity as a sum of pairwise distances
+    print("Total Diversity (Sum of Wasserstein Distances):", total_diversity)
+    print("Average Diversity (Average Wasserstein Distance):", average_diversity)
+
+
+def train_specialist_GA(env, enemies, experiment, test=False):
     for enemy in enemies:
         env.update_parameter('enemies',[enemy])
         ini = time.time()
@@ -225,12 +246,15 @@ def train_specialist_GA(env, enemies, experiment):
             
             results.loc[len(results)] = np.array([gen, best_sol, mean, std])
             
-        np.savetxt(experiment+'/best_'+ str(enemy) +'.txt',best_txt)
+        print('Final eval best solution:', simulation(env, best_txt))    
+        calculate_diversity(pop)
+        if not test:
+            np.savetxt(experiment+'/best_'+ str(enemy) +'.txt',best_txt)
         fim = time.time() # prints total execution time for experiment
         print( '\nExecution time: '+str(round((fim-ini)/60))+' minutes \n')
         print( '\nExecution time: '+str(round((fim-ini)))+' seconds \n')
     
-def train_specialist_DGA(env, enemies, experiment, n_subpops):
+def train_specialist_DGA(env, enemies, experiment, n_subpops, test=False):
     for enemy in enemies:
         env.update_parameter('enemies',[enemy])
         ini = time.time() 
@@ -280,15 +304,17 @@ def train_specialist_DGA(env, enemies, experiment, n_subpops):
             std = np.std(fitness_gen)
             results.loc[len(results)] = np.array([gen, best, mean, std])
             
-        print('Final eval best solution:', simulation(env, best_txt))    
-        np.savetxt(experiment+'/best_'+ str(enemy) +'.txt',best_txt)
+        print('Final eval best solution:', simulation(env, best_txt))
+        calculate_diversity(pop)    
+        if not test:
+            np.savetxt(experiment+'/best_'+ str(enemy) +'.txt',best_txt)
         fim = time.time() # prints total execution time for experiment
         print( '\nExecution time: '+str(round((fim-ini)/60))+' minutes \n')
         print( '\nExecution time: '+str(round((fim-ini)))+' seconds \n')
 
-experiment = 'DGA_optimization' # name of the experiment
+experiment = 'GA_optimization' # name of the experiment
 headless = True # True for not using visuals, false otherwise
-enemies = [7]
+enemies = [2]
 playermode = "ai"
 enemymode = "static"
 
@@ -296,7 +322,7 @@ lb_w, ub_w = -1, 1 # lower and ubber bound weights NN
 n_hidden_nodes = 10 # size hidden layer NN
 run_mode = 'train' # train or test
 npop = 100 # size of population
-gens = 50 # max number of generations
+gens = 5 # max number of generations
 mutation = 0.1 # mutation probability
 migration = 0.04
 n_subpops = 4
@@ -324,7 +350,7 @@ ENV.fitness_single = types.MethodType(fitness_single, ENV)
 ENV.state_to_log() # checks environment state
 n_gen = (ENV.get_num_sensors()+1)*n_hidden_nodes + (n_hidden_nodes+1)*5 #size of weight vector    
   
-train_specialist_DGA(ENV, enemies, experiment, n_subpops)      
+train_specialist_DGA(ENV, enemies, experiment, n_subpops, test=True)      
 
     
     
