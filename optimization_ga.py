@@ -186,6 +186,7 @@ def print_size_subpops(subpops):
     print('Subpops sizes:')
     for idx, pop in enumerate(subpops):
         print('Subpop {}: {}'.format(idx, len(pop)))
+    return
 
 
 def round_robin(pop, fit_pop, tournament = "random"):
@@ -212,9 +213,26 @@ def round_robin(pop, fit_pop, tournament = "random"):
                 elif result_i < result_j:
                     robin_scores[j] += 1
                 # In case of a tie, no points are awarded
-    top_indices = sorted(range(len(robin_scores)), key=lambda i: robin_scores[i], reverse=True)[:100]
     
-    return top_indices
+    return robin_scores
+
+import random
+def select_robin(pop, scores, gen_size = 100):
+    total_scores = sum(scores)
+    probabilities = [score / total_scores for score in scores]
+    
+    selected_indices = []
+    for _ in range(gen_size):
+        rand_num = random.uniform(0, 1)
+        cumulative_prob = 0
+        
+        for i, prob in enumerate(probabilities):
+            cumulative_prob += prob
+            if cumulative_prob >= rand_num:
+                selected_indices.append(i)
+                break
+
+    return selected_indices
 
 def train_specialist_GA(env, enemies, experiment):
     for enemy in enemies:
@@ -230,10 +248,9 @@ def train_specialist_GA(env, enemies, experiment):
         for gen in range(1, gens+1):
             print('Current generation:', gen)
             offspring = create_offspring(pop, fitness_gen, probabilities="ranking", fps_var="scaling", fps_transpose = 10, ranking_var="linear", sampling="sus")
-            print(len(offspring))
+            print(len(offspring)) #offspring is niet altijd hetzelfde, maar lijkt mij geen probleem?
             fitness_offspring = evaluate(env, offspring)
             pop = np.vstack((pop, offspring))
-            print(len(pop))
             fitness_gen = np.append(fitness_gen, fitness_offspring)
             
             best_idx = np.argmax(fitness_gen) #best solution in generation
@@ -242,9 +259,10 @@ def train_specialist_GA(env, enemies, experiment):
             best_txt = pop[best_idx]
             
             #survival selection 
-            top100 = round_robin(pop, fitness_gen, tournament = "random")    
-            pop = [pop[i] for i in top100]
-            fitness_gen = fitness_gen[top100]
+            scores = round_robin(pop, fitness_gen, tournament = "random")    
+            selected = select_robin(pop, scores, gen_size = 100)
+            pop = [pop[i] for i in selected]
+            fitness_gen = [fitness_gen[i] for i in selected]
 
             """
             fitness_gen_cp = fitness_gen
@@ -336,7 +354,7 @@ lb_w, ub_w = -1, 1 # lower and ubber bound weights NN
 n_hidden_nodes = 10 # size hidden layer NN
 run_mode = 'train' # train or test
 npop = 100 # size of population
-gens = 20 # max number of generations
+gens = 30 # max number of generations
 mutation = 0.1 # mutation probability
 migration = 0.04
 n_subpops = 4
