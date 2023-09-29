@@ -104,7 +104,27 @@ def select_parents(pop, fit_vals, fps_var="default", fps_transpose=10, ranking_v
         
     return couples
 
+def crossover(p1, p2, mutation):
+    offspring1 = []
+    offspring2 = []
 
+    for gene1, gene2 in zip(p1, p2):
+        if np.random.uniform(0,1) <= 0.5:
+            offspring1.append(gene1)
+            offspring2.append(gene2)
+        else:
+            offspring1.append(gene2)
+            offspring2.append(gene1)
+
+    # mutation
+    for i in range(0,len(offspring1)):
+        if np.random.uniform(0, 1)<=mutation:
+            offspring1[i] = offspring1[i]+np.random.normal(0, 0.5)
+            offspring2[i] = offspring2[i]+np.random.normal(0, 0.5)
+    offspring1 = np.array(list(map(lambda y: check_bounds(y), offspring1)))
+    offspring2 = np.array(list(map(lambda y: check_bounds(y), offspring2)))
+    
+    return np.array([offspring1, offspring2])
 
 # crossover
 def crossover(p1, p2, mutation):
@@ -160,6 +180,10 @@ def exchange_information(subpops, fitness_subpops, migration_rate=0.1):
 def simulation(env,x):
     f,p,e,t = env.play(pcont=x)
     return f
+
+def simulation_gain(env,x):
+    f,p,e,t = env.play(pcont=x)
+    return p-e
 
 def check_bounds(x):
     if x>ub_w:
@@ -259,8 +283,7 @@ def plot_diversity(results):
     # Show the plot
     plt.show()
 
-def train_specialist_GA(env, enemy, experiment, mutation, test=False, probabilities_parents="ranking", sampling="sus", sol_num = 0):
-    env.update_parameter('enemies',[enemy])
+def train_specialist_GA(env, mutation, test=False, probabilities_parents="ranking", sampling="sus"):
     ini = time.time()
     results = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'diversity'])
     
@@ -270,14 +293,15 @@ def train_specialist_GA(env, enemy, experiment, mutation, test=False, probabilit
     best_txt = ''
     
     for gen in range(1, gens+1):
-        print('Current generation:', gen)
+        # print('Current generation:', gen)
         offspring = create_offspring(pop, fitness_gen, mutation=mutation, probabilities=probabilities_parents, fps_var="scaling", fps_transpose = 10, ranking_var="linear", sampling=sampling)
         fitness_offspring = evaluate(env, offspring)
         pop = np.vstack((pop, offspring))
         fitness_gen = np.append(fitness_gen, fitness_offspring)
         
-        best_idx = np.argmax(fitness_gen) #best solution in generation
-        best_sol = fitness_gen[best_idx]
+        # Find best solution
+        best_idx = np.argmax(fitness_gen)
+        best = fitness_gen[best_idx]
         best_txt = pop[best_idx]
         
         #survival selection 
@@ -290,21 +314,19 @@ def train_specialist_GA(env, enemy, experiment, mutation, test=False, probabilit
         std = np.std(fitness_gen)
         mean = np.mean(fitness_gen)
         div = calculate_diversity(pop)
-        results.loc[len(results)] = np.array([gen, best_sol, mean, std, div])
+        results.loc[len(results)] = np.array([gen, best, mean, std, div])
+        print('Gen: {}, Best: {}, Mean: {}'.format(gen, best, mean))
         
     best = simulation(env, best_txt)
-    if not test:
-        # np.savetxt(experiment+'/best_GA_'+ str(enemy) + '_' + str(sol_num) +'.txt',best_txt)
-        print('Final eval best solution:', best)    
-        # calculate_diversity(pop)
-        # plot_diversity(results)
-    fim = time.time() # prints total execution time for experiment
-    print( '\nExecution time: '+str(round((fim-ini)/60))+' minutes \n')
-    print( '\nExecution time: '+str(round((fim-ini)))+' seconds \n')
+    
+    # fim = time.time() # prints total execution time for experiment
+    # print('Final eval best solution:', best)    
+    # print( '\nExecution time: '+str(round((fim-ini)/60))+' minutes \n')
+    # print( '\nExecution time: '+str(round((fim-ini)))+' seconds \n')
     return best, results, best_txt
 
-def train_specialist_DGA(env, enemy, experiment, mutation, migration, n_subpops, sampling='roulette', test=False, sol_num = 0):
-    env.update_parameter('enemies',[enemy])
+
+def train_specialist_DGA(env, mutation, migration, n_subpops, sampling='roulette', test=False):
     ini = time.time() 
     results = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'diversity'])
     
@@ -316,7 +338,7 @@ def train_specialist_DGA(env, enemy, experiment, mutation, migration, n_subpops,
     best_txt = ''
     
     for gen in range(1, gens+1):
-        print('Current generation:', gen)
+        # print('Current generation:', gen)
         
         for idx, subpop in enumerate(subpops):
             sub_pop_size = len(subpop)
@@ -344,27 +366,38 @@ def train_specialist_DGA(env, enemy, experiment, mutation, migration, n_subpops,
         std = np.std(fitness_gen)
         div = calculate_diversity(pop)
         results.loc[len(results)] = np.array([gen, best, mean, std, div])
+        print('Gen: {}, Best: {}, Mean: {}'.format(gen, best, mean))
         
     best = simulation(env, best_txt)
     
-    if not test:
-        # np.savetxt(experiment+'/best_DGA_'+ str(enemy) + '_' + str(sol_num) + '.txt',best_txt)
-        # div = calculate_diversity(pop)   
-        # plot_diversity(results)
-        print('Best final solution: {}'.format(best)) 
-    fim = time.time() # prints total execution time for experiment
-    print( '\nExecution time: '+str(round((fim-ini)/60))+' minutes \n')
-    print( '\nExecution time: '+str(round((fim-ini)))+' seconds \n')
+   
+    # np.savetxt(experiment+'/best_DGA_'+ str(enemy) + '_' + str(sol_num) + '.txt',best_txt)
+    # div = calculate_diversity(pop)   
+    # plot_diversity(results)
+    # print('Best final solution: {}'.format(best)) 
+    # fim = time.time() # prints total execution time for experiment
+    # print( '\nExecution time: '+str(round((fim-ini)/60))+' minutes \n')
+    # print( '\nExecution time: '+str(round((fim-ini)))+' seconds \n')
     
     return best, results, best_txt
     
-def hyperparameter_tuning():
-    def model_GA(env, enemies, experiment, hyperparameters):
-        return train_specialist_GA(env, enemies, experiment, mutation=hyperparameters['mutation'], test=True, 
+def hyperparameter_tuning(enemy):
+    
+    enviroment = Environment(experiment_name=experiment,
+                            enemies=[enemy],
+                            playermode=playermode,
+                            player_controller=player_controller(n_hidden_nodes),
+                            enemymode=enemymode,
+                            level=2,
+                            speed="fastest",
+                            visuals=False)
+    
+    def model_GA(env, hyperparameters):
+        return train_specialist_GA(env, mutation=hyperparameters['mutation'], test=True, 
                                probabilities_parents=hyperparameters['probabilities_parents'], sampling=hyperparameters["sampling"])
     
-    def model_DGA(env, enemies, experiment, hyperparameters):
-        return train_specialist_DGA(env, npop, gens, enemies, experiment, hyperparameters['mutation'], hyperparameters['migration'], hyperparameters['n_subpops'], test=True)
+    def model_DGA(env, hyperparameters):
+        return train_specialist_DGA(env, hyperparameters['mutation'], hyperparameters['migration'], hyperparameters['n_subpops'], test=True)
     
 
     def objective(trial):
@@ -378,8 +411,8 @@ def hyperparameter_tuning():
             
         }
 
-        # fitness, results = model_GA(ENV, enemies, experiment, hyperparameters)
-        fitness, results = model_DGA(ENV, enemies, experiment, hyperparameters)
+        # fitness, results = model_GA(enviroment, enemies, experiment, hyperparameters)
+        fitness, results = model_DGA(enviroment, enemies, experiment, hyperparameters)
         return fitness
 
     print('Starting optimization')
@@ -402,34 +435,18 @@ gens = 50 # max number of generations
 
 experiment = 'GA_optimization' # name of the experiment
 headless = True # True for not using visuals, false otherwise
-enemies = [1,2,7]
 playermode = "ai"
 enemymode = "static"
 
 lb_w, ub_w = -1, 1 # lower and ubber bound weights NN
 n_hidden_nodes = 10 # size hidden layer NN
-run_mode = 'train' # train or test
-
+run_mode = 'train' # train or test  
+    
 if headless:
     os.environ["SDL_VIDEODRIVER"] = "dummy"
 
 if not os.path.exists(experiment):
-    os.makedirs(experiment)
-    
-ENV = Environment(experiment_name=experiment,
-                enemies=enemies,
-                playermode=playermode,
-                player_controller=player_controller(n_hidden_nodes),
-                enemymode=enemymode,
-                level=2,
-                speed="fastest",
-                visuals=False)
-
-ENV.fitness_single = types.MethodType(fitness_single, ENV)
-
-ENV.state_to_log() # checks environment state
-n_gen = (ENV.get_num_sensors()+1)*n_hidden_nodes + (n_hidden_nodes+1)*5 #size of weight vector    
-
+    os.makedirs(experiment) 
 
 mutation_GA = 0.033438 # mutation probability
 sampling_GA = 'roulette'
@@ -438,21 +455,39 @@ sampling_DGA = 'sus'
 migration = 0.03478
 n_subpops = 4
 
-solutions = []
+enviroment = Environment(experiment_name=experiment,
+                playermode=playermode,
+                player_controller=player_controller(n_hidden_nodes),
+                enemymode=enemymode,
+                level=2,
+                speed="fastest",
+                visuals=False)
+enviroment.fitness_single = types.MethodType(fitness_single, enviroment)
+enviroment.state_to_log() # checks environment state
+n_gen = (enviroment.get_num_sensors()+1)*n_hidden_nodes + (n_hidden_nodes+1)*5 #size of weight vector 
+
 enemies = [1,2,7]
+n_runs = 10
+
 for enemy in enemies:
     df_DGA = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'diversity', 'solution'])
     df_GA = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'diversity', 'solution'])
     best_sols_DGA = []
     best_sols_GA = []
-    for i in range(10):
-        print('solution {}/10'.format(i+1))
-        best_score, results_DGA, best_DGA = train_specialist_DGA(ENV, enemy, experiment, mutation_DGA, migration, n_subpops, sampling='roulette', test=False, sol_num=i)
-        best_score, results_GA, best_GA = train_specialist_GA(ENV, enemy, experiment, mutation=mutation_GA, test=False, 
-                                    probabilities_parents='ranking', sampling='roulette', sol_num=i)
+    for i in range(n_runs):
+        print('Generating solution {}/{}'.format(i+1,n_runs))
         
+        enviroment.update_parameter('enemies', [enemy])
+        best_score, results_DGA, best_DGA = train_specialist_DGA(enviroment, mutation_DGA, migration, n_subpops, sampling='sus', test=False)
+        best_score, results_GA, best_GA = train_specialist_GA(enviroment, mutation=mutation_GA, test=False, 
+                                    probabilities_parents='ranking', sampling='roulette')
+
+        gain_DGA = np.mean(np.array([simulation_gain(enviroment, best_DGA) for _ in range(5)]))
+        gain_GA = np.mean(np.array([simulation_gain(enviroment, best_GA) for _ in range(5)]))
+        print('Average gain for DGA solution {}: {}'.format(i+1, gain_DGA))
+        print('Average gain for GA solution {}: {}'.format(i+1, gain_GA))
         best_sols_DGA.append(best_DGA)
-        best_sols_GA.append(best_GA)             
+        best_sols_GA.append(best_GA)          
         results_DGA['solution'] = i
         results_GA['solution'] = i
         
@@ -463,7 +498,7 @@ for enemy in enemies:
     np.savetxt(experiment+'/best_GA_'+ str(enemy) + '.txt',np.array(best_sols_GA))
             
     df_DGA.to_csv(experiment+'/results_DGA_' + str(enemy))
-    df_GA.to_csv(experiment+'/results_DGA_' + str(enemy))
+    df_GA.to_csv(experiment+'/results_GA_' + str(enemy))
         
         
 

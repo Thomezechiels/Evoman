@@ -15,7 +15,7 @@ from controller import player_controller
 # imports other libs
 import numpy as np
 
-experiment_name = 'GA_optimization'
+experiment_name = 'GA_optimization_test'
 if not os.path.exists(experiment_name):
     os.makedirs(experiment_name)
 
@@ -32,13 +32,17 @@ env = Environment(experiment_name=experiment_name,
 				  visuals=True)
 
 # tests saved demo solutions for each enemy
-enemies = [7]
+enemies = [1,2,7]
 for en in enemies:
 
 	#Update the enemy
 	env.update_parameter('enemies',[en])
 
 	# Load specialist controller
-	sol = np.loadtxt(experiment_name + '/best_'+str(en)+'.txt')
-	print('\n LOADING SAVED SPECIALIST SOLUTION FOR ENEMY '+str(en)+' \n')
-	env.play(sol)
+	sol = np.loadtxt(experiment_name + '/best_DGA_' + str(en) + '.txt')
+	# env.play(sol)
+	sol = [sol]
+	for i in range(1):
+		solution = sol[i]
+		print('\n LOADING SAVED SPECIALIST SOLUTION {} FOR ENEMY '.format(i) +str(en)+' \n')
+		env.play(solution)

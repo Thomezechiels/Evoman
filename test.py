@@ -1,4 +1,5 @@
 import numpy as np
+import random
 
 
 experiment = 'GA_optimization' # name of the experiment
@@ -14,7 +15,7 @@ npop = 157 # size of population
 gens = 50 # max number of generations
 mutation = 0.1 # mutation probability 
 n_gen = 265
-n_subpops = 
+n_subpops = 4
 
 def initialize_population(n):
     return np.random.uniform(lb_w, ub_w, (n, n_gen))
@@ -46,8 +47,26 @@ def print_size_subpops(subpops):
         print('Subpop {}: {}'.format(idx, len(pop)))
         
 pop = initialize_population(npop)
-subpops = np.array_split(pop, n_subpops, axis=0)
-print_size_subpops(subpops)
 
-exchange_information(subpops)
-print_size_subpops(subpops)
+
+def crossover(p1, p2):
+    offspring1 = []
+    offspring2 = []
+
+    for gene1, gene2 in zip(p1, p2):
+        if random.random() < 0.5:
+            offspring1.append(gene1)
+            offspring2.append(gene2)
+        else:
+            offspring1.append(gene2)
+            offspring2.append(gene1)
+
+        # mutation
+        for i in range(0,len(offspring1)):
+            if np.random.uniform(0, 1)<=mutation:
+                offspring1[i] = offspring1[i]+np.random.normal(0, 0.5)
+                offspring2[i] = offspring2[i]+np.random.normal(0, 0.5)
+
+    return np.array([offspring1, offspring2])
+
+
