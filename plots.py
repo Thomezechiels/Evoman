@@ -8,33 +8,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import glob, os
 
-# df1 = pd.read_csv('csv/enemy_1.csv')
-# df2 = pd.read_csv('csv/enemy_2.csv')
-# df7 = pd.read_csv('csv/enemy_7.csv')
 
 
-# fig, axs = plt.subplots(1, 3)
-# # fig.suptitle('Average from best and mean score per generation over 10 runs')
 
-# axs[0].plot(df1['gen'], df1[['best_avg', 'mean_avg']])
-# axs[1].plot(df2['gen'], df2[['best_avg', 'mean_avg']])
-# axs[2].plot(df7['gen'], df7[['best_avg', 'mean_avg']])
 
-# axs[0].set_title('Enemy 1')
-# axs[1].set_title('Enemy 2')
-# axs[2].set_title('Enemy 7')
 
-# axs[0].legend(['Best', 'Mean'])
-# axs[1].legend(['Best', 'Mean'])
-# axs[2].legend(['Best', 'Mean'])
 
-# for ax in axs.flat:
-#     ax.set(xlabel='generations', ylabel='fitness score')
 
-# for ax in axs.flat:
-#     ax.label_outer()
 
-# plt.show()
 
 
 df_GA_1 = pd.read_csv('results_csv/results_GA_1.csv')
@@ -44,29 +25,27 @@ df_DGA_1 = pd.read_csv('results_csv/results_DGA_1.csv')
 df_DGA_2 = pd.read_csv('results_csv/results_DGA_2.csv')
 df_DGA_7 = pd.read_csv('results_csv/results_DGA_7.csv')
 
+list_files = [df_GA_1, df_GA_2, df_GA_7, df_DGA_1, df_DGA_2, df_DGA_7]
 
+list_df = []
+for df in list_files:
+    df_avg = df[['gen', 'best', 'mean']].groupby(['gen']).mean()
+    df_avg[['best_std', 'mean_std']] = df[['gen', 'best', 'mean']].groupby(['gen']).std()
+    df_avg['lower_best'] = df_avg['best'] - df_avg['best_std']
+    df_avg['upper_best'] = df_avg['best'] + df_avg['best_std']
+    df_avg['lower_mean'] = df_avg['mean'] - df_avg['mean_std']
+    df_avg['upper_mean'] = df_avg['mean'] + df_avg['mean_std']
+    list_df.append(df_avg)
 
-df_GA_1_avg = df_GA_1[['gen', 'best', 'mean']].groupby(['gen']).mean()
-df_GA_2_avg = df_GA_2[['gen', 'best', 'mean']].groupby(['gen']).mean()
-df_GA_7_avg = df_GA_7[['gen', 'best', 'mean']].groupby(['gen']).mean()
-df_DGA_1_avg = df_DGA_1[['gen', 'best', 'mean']].groupby(['gen']).mean()
-df_DGA_2_avg = df_DGA_2[['gen', 'best', 'mean']].groupby(['gen']).mean()
-df_DGA_7_avg = df_DGA_7[['gen', 'best', 'mean']].groupby(['gen']).mean()
-
-print(df_DGA_2_avg)
 
 fig, axs = plt.subplots(1, 3)
-axs[0].plot(df_GA_1_avg.index, df_GA_1_avg[['best', 'mean']])
-axs[1].plot(df_GA_2_avg.index, df_GA_2_avg[['best', 'mean']])
-axs[2].plot(df_GA_7_avg.index, df_GA_7_avg[['best', 'mean']])
 
-axs[0].set_title('Enemy 1')
-axs[1].set_title('Enemy 2')
-axs[2].set_title('Enemy 7')
-
-axs[0].legend(['Best', 'Mean'])
-axs[1].legend(['Best', 'Mean'])
-axs[2].legend(['Best', 'Mean'])
+for df in range(3):
+    axs[df].plot(list_df[df].index, list_df[df][['best', 'mean']])
+    axs[df].fill_between(list_df[df].index, list_df[df]['lower_best'], list_df[df]['upper_best'], facecolor='C0', alpha=0.4)
+    axs[df].fill_between(list_df[df].index, list_df[df]['lower_mean'], list_df[df]['upper_mean'], facecolor='C1', alpha=0.4)
+    axs[df].set_title('Enemy {}'.format(df))
+    axs[df].legend(['Best', 'Mean'])
 
 for ax in axs.flat:
     ax.set(xlabel='generations', ylabel='fitness score')
@@ -78,24 +57,21 @@ plt.show()
 
 
 fig, axs = plt.subplots(1, 3)
-axs[0].plot(df_DGA_1_avg.index, df_DGA_1_avg[['best', 'mean']])
-axs[1].plot(df_DGA_2_avg.index, df_DGA_2_avg[['best', 'mean']])
-axs[2].plot(df_DGA_7_avg.index, df_DGA_7_avg[['best', 'mean']])
 
-axs[0].set_title('Enemy 1')
-axs[1].set_title('Enemy 2')
-axs[2].set_title('Enemy 7')
-
-axs[0].legend(['Best', 'Mean'])
-axs[1].legend(['Best', 'Mean'])
-axs[2].legend(['Best', 'Mean'])
+for df in range(2, 5):
+    axs[df-2].plot(list_df[df].index, list_df[df][['best', 'mean']])
+    axs[df-2].fill_between(list_df[df].index, list_df[df]['lower_best'], list_df[df]['upper_best'], facecolor='C0', alpha=0.4)
+    axs[df-2].fill_between(list_df[df].index, list_df[df]['lower_mean'], list_df[df]['upper_mean'], facecolor='C1', alpha=0.4)
+    axs[df-2].set_title('Enemy {}'.format(df))
+    axs[df-2].legend(['Best', 'Mean'])
 
 for ax in axs.flat:
     ax.set(xlabel='generations', ylabel='fitness score')
 
 for ax in axs.flat:
     ax.label_outer()
-# plt.show()
+plt.show()
+
 
 
 
