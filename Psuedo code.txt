@@ -51,3 +51,12 @@ Repeat for a fixed number of generations or until convergence:
     Replace the old population with the new population
     
     Evaluate convergence criteria (e.g., maximum number of generations or desired fitness level)
+
+
+
+Ideas for improvement:
+- Kill twins --> prevent early convergence
+- Implement doomsday
+- Tweak population size / number of generations
+- Parent selection --> match strongest parents
+- Migration selection based on fitness --> Higher fitenss = more likely to migrate?

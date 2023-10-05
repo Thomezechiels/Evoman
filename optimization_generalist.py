@@ -5,6 +5,7 @@ from controller import player_controller
 import optuna
 import types
 import time
+import math
 import numpy as np
 import pandas as pd
 from math import fabs,sqrt
@@ -17,8 +18,14 @@ def initialize_population(n):
     return np.random.uniform(lb_w, ub_w, (n, n_gen))
 
 def fitness_single(self):
-        return 0.7*(100 - self.get_enemylife()) + 0.3*self.get_playerlife() - 0.5 * np.log(self.get_time())
-        # return self.get_playerlife() - self.get_enemylife()
+        # return 0.7*(100 - self.get_enemylife()) + 0.3*self.get_playerlife() - 0.5 * np.log(self.get_time())
+        return 100 + self.get_playerlife() - self.get_enemylife()
+
+def selection_ranking(pop, fit_vals, ranking_var='linear'):
+    sorted_indices = np.argsort(fit_vals)[::-1]
+    selection_probabilities = [selection_probability(len(pop), 1.5, i, method=ranking_var) for i in range(len(pop))]
+    reordered_probabilities = [selection_probabilities[i] for i in sorted_indices]
+    return np.array(reordered_probabilities)
 
 def selection_fps(fit_vals, fps_var="default", fps_transpose=10):
     # Fitness Proportional Selection (FPS) has 4 variations: default, transpose, windowing, scaling
@@ -32,8 +39,6 @@ def selection_fps(fit_vals, fps_var="default", fps_transpose=10):
         
     selection_probabilities = np.array(fit_vals) / sum(fit_vals)
     return selection_probabilities
-        
-import math
 
 def selection_probability(mu, s, rank, method='linear'):
     if rank < 0 or rank >= mu:
@@ -48,13 +53,7 @@ def selection_probability(mu, s, rank, method='linear'):
     elif method == 'exponential':
         c = mu / (1 - math.exp(-mu))  # Calculate the exponential ranking parameter 'c'
         return (1 - math.exp(-rank)) / c
-        
-def selection_ranking(pop, fit_vals, ranking_var='linear'):
-    sorted_indices = np.argsort(fit_vals)[::-1]
-    selection_probabilities = [selection_probability(len(pop), 1.5, i, method=ranking_var) for i in range(len(pop))]
-    reordered_probabilities = [selection_probabilities[i] for i in sorted_indices]
-
-    return np.array(reordered_probabilities)
+    
 
 
 def select_parents(pop, fit_vals, fps_var="default", fps_transpose=10, ranking_var="exponential", sampling="sus", probabilities="fps"):
@@ -93,7 +92,8 @@ def select_parents(pop, fit_vals, fps_var="default", fps_transpose=10, ranking_v
                 r += 1 / num_parents
                 current_member += 1
             i += 1
-
+        
+        parents.sort()
         couples = parents.reshape(num_couples, 2, 265)
 
         return couples
@@ -105,51 +105,28 @@ def select_parents(pop, fit_vals, fps_var="default", fps_transpose=10, ranking_v
     return couples
 
 def crossover(p1, p2, mutation):
-    offspring1 = []
-    offspring2 = []
+    gene_mask = np.random.rand(len(p1)) <= 0.5
 
-    for gene1, gene2 in zip(p1, p2):
-        if np.random.uniform(0,1) <= 0.5:
-            offspring1.append(gene1)
-            offspring2.append(gene2)
-        else:
-            offspring1.append(gene2)
-            offspring2.append(gene1)
+    offspring1 = p1.copy()
+    offspring2 = p2.copy()
 
-    # mutation
-    for i in range(0,len(offspring1)):
-        if np.random.uniform(0, 1)<=mutation:
-            offspring1[i] = offspring1[i]+np.random.normal(0, 0.5)
-            offspring2[i] = offspring2[i]+np.random.normal(0, 0.5)
-    offspring1 = np.array(list(map(lambda y: check_bounds(y), offspring1)))
-    offspring2 = np.array(list(map(lambda y: check_bounds(y), offspring2)))
-    
+    offspring1[gene_mask] = p2[gene_mask]
+    offspring2[gene_mask] = p1[gene_mask]
+
+    mutation_mask = np.random.rand(len(p1)) <= mutation
+    offspring1 += np.random.normal(0, 0.5, size=len(p1)) * mutation_mask
+    offspring2 += np.random.normal(0, 0.5, size=len(p1)) * mutation_mask
+
+    offspring1 = np.clip(offspring1, lb_w, ub_w)
+    offspring2 = np.clip(offspring2, lb_w, ub_w)
+
     return np.array([offspring1, offspring2])
-
-# crossover
-def crossover(p1, p2, mutation):
-
-    n_offspring = np.random.randint(1,4)
-    offspring = np.zeros((n_offspring, n_gen))
-
-    for f in range(0, n_offspring):
-        cross_prop = np.random.uniform(0,1)
-        offspring[f] = p1*cross_prop+p2*(1-cross_prop)
-  
-        # mutation
-        for i in range(0,len(offspring[f])):
-            if np.random.uniform(0 ,1) <= mutation:
-                offspring[f][i] = offspring[f][i]+np.random.normal(0, 0.5)
-
-        offspring[f] = np.array(list(map(lambda y: check_bounds(y), offspring[f])))
-
-    return offspring
     
 def create_offspring(pop, fitness, mutation, probabilities, fps_var, fps_transpose, ranking_var, sampling):
     couples = select_parents(pop, fitness, fps_var, fps_transpose, ranking_var, sampling, probabilities) #default, transpose, windowing, scaling
     total_offspring = np.zeros((0, n_gen))
-    for parents in couples:
-        offspring = crossover(parents[0], parents[1], mutation)
+    for p1, p2 in couples:
+        offspring = crossover(p1, p2, mutation)
         total_offspring = np.vstack((total_offspring, offspring))
         
     return total_offspring
@@ -184,14 +161,6 @@ def simulation(env,x):
 def simulation_gain(env,x):
     f,p,e,t = env.play(pcont=x)
     return p-e
-
-def check_bounds(x):
-    if x>ub_w:
-        return ub_w
-    elif x<lb_w:
-        return lb_w
-    else:
-        return x
     
 def norm(x, pfit_pop):
 
@@ -221,6 +190,14 @@ def calculate_diversity(population):
             total_diversity += wasserstein_distance(histograms[i], histograms[j])
             
     return total_diversity / (len(population) * (len(population) - 1) / 2)
+
+def count_twins(pop):
+    count = 0
+    for i in range(len(pop)):
+        for j in range (i + 1, len(pop)):
+            if np.array_equal(pop[i], pop[j]):
+                count += 1
+    return count
 
 def round_robin(population, fit_pop, tournament = "random"):
     num_individuals = len(population)
@@ -291,9 +268,9 @@ def train_specialist_GA(env, mutation, test=False, probabilities_parents="rankin
     fitness_gen = evaluate(env, pop)
     results.loc[len(results)] = np.array([0, np.max(fitness_gen), np.mean(fitness_gen), np.std(fitness_gen), calculate_diversity(pop)])
     best_txt = ''
-    
+    pop_prev = np.copy(pop)
     for gen in range(1, gens+1):
-        # print('Current generation:', gen)
+        mutation -= 0.015
         offspring = create_offspring(pop, fitness_gen, mutation=mutation, probabilities=probabilities_parents, fps_var="scaling", fps_transpose = 10, ranking_var="linear", sampling=sampling)
         fitness_offspring = evaluate(env, offspring)
         pop = np.vstack((pop, offspring))
@@ -307,22 +284,23 @@ def train_specialist_GA(env, mutation, test=False, probabilities_parents="rankin
         #survival selection 
         scores = np.array(round_robin(pop, fitness_gen, tournament = "random"))    
         selected = np.array(select_robin(scores, gen_size = npop))
-        selected = np.append(selected[1:], best_idx)
+        if best_idx not in selected: 
+            selected = np.append(selected[1:], best_idx)
         pop = pop[selected]
         fitness_gen = fitness_gen[selected]
-        
+        pop_prev = np.copy(pop)
         std = np.std(fitness_gen)
         mean = np.mean(fitness_gen)
         div = calculate_diversity(pop)
         results.loc[len(results)] = np.array([gen, best, mean, std, div])
-        print('Gen: {}, Best: {}, Mean: {}'.format(gen, best, mean))
+        print('Gen: {}, Best: {:.2f}, Mean: {:.2f}, Diversity: {:.2f}'.format(gen, best, mean, div))
         
     best = simulation(env, best_txt)
     
-    # fim = time.time() # prints total execution time for experiment
-    # print('Final eval best solution:', best)    
-    # print( '\nExecution time: '+str(round((fim-ini)/60))+' minutes \n')
-    # print( '\nExecution time: '+str(round((fim-ini)))+' seconds \n')
+    fim = time.time() # prints total execution time for experiment
+    print('Final eval best solution:', best)    
+    print( '\nExecution time: '+str(round((fim-ini)/60))+' minutes \n')
+    print( '\nExecution time: '+str(round((fim-ini)))+' seconds \n')
     return best, results, best_txt
 
 
@@ -338,8 +316,6 @@ def train_specialist_DGA(env, mutation, migration, n_subpops, sampling='roulette
     best_txt = ''
     
     for gen in range(1, gens+1):
-        # print('Current generation:', gen)
-        
         for idx, subpop in enumerate(subpops):
             sub_pop_size = len(subpop)
             fitness_subpop = fitness_subpops[idx]
@@ -352,10 +328,9 @@ def train_specialist_DGA(env, mutation, migration, n_subpops, sampling='roulette
             
             scores = np.array(round_robin(cur_pop, fitness, tournament = "random"))    
             selected = np.array(select_robin(scores, sub_pop_size))
-            selected = np.append(selected[1:], best_idx)
-            fitness = fitness[selected]
-
-            fitness_subpops[idx] = fitness
+            if not best_idx in selected:
+                selected = np.append(selected[1:], best_idx)
+            fitness_subpops[idx] = fitness[selected]
             subpops[idx] = cur_pop[selected]
             
         fitness_gen = np.concatenate(fitness_subpops)
@@ -365,8 +340,9 @@ def train_specialist_DGA(env, mutation, migration, n_subpops, sampling='roulette
         mean = np.mean(fitness_gen)
         std = np.std(fitness_gen)
         div = calculate_diversity(pop)
+        
         results.loc[len(results)] = np.array([gen, best, mean, std, div])
-        print('Gen: {}, Best: {}, Mean: {}'.format(gen, best, mean))
+        print('Gen: {}, Best: {:.2f}, Mean: {:.2f}, Diversity: {:.2f}'.format(gen, best, mean, div))
         
     best = simulation(env, best_txt)
     
@@ -430,10 +406,9 @@ def hyperparameter_tuning(enemy):
             'accuracy': best_accuracy}
     print(res)
 
-npop = 100
-gens = 50 # max number of generations
 
-experiment = 'GA_optimization' # name of the experiment
+
+experiment = 'generalist_optimization' # name of the experiment
 headless = True # True for not using visuals, false otherwise
 playermode = "ai"
 enemymode = "static"
@@ -448,17 +423,20 @@ if headless:
 if not os.path.exists(experiment):
     os.makedirs(experiment) 
 
-mutation_GA = 0.033438 # mutation probability
+npop = 100
+gens = 50 # max number of generations
+mutation_GA = 0.333438 # mutation probability
 sampling_GA = 'roulette'
 mutation_DGA = 0.197246 # mutation probability
 sampling_DGA = 'sus'
-migration = 0.03478
-n_subpops = 4
+migration = 0.2
+n_subpops = 3
 
 enviroment = Environment(experiment_name=experiment,
                 playermode=playermode,
                 player_controller=player_controller(n_hidden_nodes),
                 enemymode=enemymode,
+                multiplemode="yes",
                 level=2,
                 speed="fastest",
                 visuals=False)
@@ -466,41 +444,50 @@ enviroment.fitness_single = types.MethodType(fitness_single, enviroment)
 enviroment.state_to_log() # checks environment state
 n_gen = (enviroment.get_num_sensors()+1)*n_hidden_nodes + (n_hidden_nodes+1)*5 #size of weight vector 
 
-enemies = [1,2,7]
+enemies = [1,7]
 n_runs = 10
 
-for enemy in enemies:
-    df_DGA = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'diversity', 'solution'])
-    df_GA = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'diversity', 'solution'])
-    best_sols_DGA = []
-    best_sols_GA = []
-    for i in range(n_runs):
-        print('Generating solution {}/{}'.format(i+1,n_runs))
-        
-        enviroment.update_parameter('enemies', [enemy])
-        best_score, results_DGA, best_DGA = train_specialist_DGA(enviroment, mutation_DGA, migration, n_subpops, sampling='sus', test=False)
-        best_score, results_GA, best_GA = train_specialist_GA(enviroment, mutation=mutation_GA, test=False, 
-                                    probabilities_parents='ranking', sampling='roulette')
+enviroment.update_parameter('enemies', enemies)
+best_score, results_GA, best_GA = train_specialist_GA(enviroment, mutation=mutation_GA, test=False, 
+                                    probabilities_parents='ranking', sampling='sus')
+np.savetxt(experiment+'/best_GA_set_test.txt',np.array(best_GA))
 
-        gain_DGA = np.mean(np.array([simulation_gain(enviroment, best_DGA) for _ in range(5)]))
-        gain_GA = np.mean(np.array([simulation_gain(enviroment, best_GA) for _ in range(5)]))
-        print('Average gain for DGA solution {}: {}'.format(i+1, gain_DGA))
-        print('Average gain for GA solution {}: {}'.format(i+1, gain_GA))
-        best_sols_DGA.append(best_DGA)
-        best_sols_GA.append(best_GA)          
-        results_DGA['solution'] = i
-        results_GA['solution'] = i
+# best_score, results_DGA, best_DGA = train_specialist_DGA(enviroment, mutation_DGA, migration, n_subpops, sampling='sus', test=False)
+# np.savetxt(experiment+'/best_DGA_set_2.txt',np.array(best_DGA))
+
+# for enemy in enemies:
+#     df_DGA = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'diversity', 'solution'])
+#     df_GA = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'diversity', 'solution'])
+#     best_sols_DGA = []
+#     best_sols_GA = []
+#     for i in range(n_runs):
+#         print('Generating solution {}/{}'.format(i+1,n_runs))
         
-        df_DGA = pd.concat([df_DGA, results_DGA], axis=0, ignore_index=True)
-        df_GA = pd.concat([df_GA, results_GA], axis=0, ignore_index=True)
+#         enviroment.update_parameter('enemies', [enemy])
+#         best_score, results_DGA, best_DGA = train_specialist_DGA(enviroment, mutation_DGA, migration, n_subpops, sampling='sus', test=False)
+#         best_score, results_GA, best_GA = train_specialist_GA(enviroment, mutation=mutation_GA, test=False, 
+#                                     probabilities_parents='ranking', sampling='roulette')
+
+#         gain_DGA = np.mean(np.array([simulation_gain(enviroment, best_DGA) for _ in range(5)]))
+#         gain_GA = np.mean(np.array([simulation_gain(enviroment, best_GA) for _ in range(5)]))
+#         print('Average gain for DGA solution {}: {}'.format(i+1, gain_DGA))
+#         print('Average gain for GA solution {}: {}'.format(i+1, gain_GA))
+#         best_sols_DGA.append(best_DGA)
+#         best_sols_GA.append(best_GA)          
+#         results_DGA['solution'] = i
+#         results_GA['solution'] = i
         
-    np.savetxt(experiment+'/best_DGA_'+ str(enemy) + '.txt',np.array(best_sols_DGA))
-    np.savetxt(experiment+'/best_GA_'+ str(enemy) + '.txt',np.array(best_sols_GA))
+#         df_DGA = pd.concat([df_DGA, results_DGA], axis=0, ignore_index=True)
+#         df_GA = pd.concat([df_GA, results_GA], axis=0, ignore_index=True)
+        
+#     np.savetxt(experiment+'/best_DGA_'+ str(enemy) + '.txt',np.array(best_sols_DGA))
+#     np.savetxt(experiment+'/best_GA_'+ str(enemy) + '.txt',np.array(best_sols_GA))
             
-    df_DGA.to_csv(experiment+'/results_DGA_' + str(enemy))
-    df_GA.to_csv(experiment+'/results_GA_' + str(enemy))
+#     df_DGA.to_csv(experiment+'/results_DGA_' + str(enemy))
+#     df_GA.to_csv(experiment+'/results_GA_' + str(enemy))
         
         
-
+# import cProfile
+# cProfile.run("train_specialist_GA(enviroment, mutation_GA, False, 'ranking', 'sus')", sort="cumulative")
     
     
