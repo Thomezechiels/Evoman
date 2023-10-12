@@ -303,7 +303,6 @@ def select_robin(scores, gen_size):
 
 def train_specialist_GA(env, mutation, probabilities_parents="ranking", sampling="sus", n_crossover=2, 
                         sigma_share=15, pop_given=[], elitism_rate=0.1, enemies_to_train=3):
-    ini = time.time()
     best_txt = []
     actual_best = []
     actual_best_score = 0
@@ -503,7 +502,6 @@ enviroment = Environment(experiment_name=experiment,
                 enemymode=enemymode,
                 multiplemode="yes",
                 level=2,
-                randomini="yes",
                 logs = "off",
                 speed="fastest",
                 visuals=False)
@@ -513,32 +511,35 @@ enviroment.multiple = types.MethodType(multiple, enviroment)
 n_gen = (enviroment.get_num_sensors()+1)*n_hidden_nodes + (n_hidden_nodes+1)*5 #size of weight vector 
 
 enemies = [1,2,3,4,5,6,7,8]
+enviroment.update_parameter('enemies', enemies)
 
-npop = 60
-gens_DGA = 1 # max number of generations
+npop = 64
+gens_DGA = 10 # max number of generations
 gens_GA = 30
 
 import contextlib
 
 def objective(trial):
-    migration = trial.suggest_float('migration', 0, 0.3)
+    # migration = trial.suggest_float('migration', 0, 0.3)
     mutation_GA = trial.suggest_float('mutation_GA', 0, 0.15)
-    mutation_DGA = trial.suggest_float('mutation_DGA', 0.1, 0.3)
+    # mutation_DGA = trial.suggest_float('mutation_DGA', 0.1, 0.3)
     n_point_crossover_GA = trial.suggest_int('n_point_crossover_GA', 2, 6)
-    n_point_crossover_DGA = trial.suggest_int('n_point_crossover_DGA', 1, 6)
+    # n_point_crossover_DGA = trial.suggest_int('n_point_crossover_DGA', 1, 6)
     sampling_GA = trial.suggest_categorical('sampling_GA', ['sus', 'roulette'])
-    probabilities_parents_GA = trial.suggest_categorical('probabilities_parents_GA', ['ranking', 'fps'])
+    # probabilities_parents_GA = trial.suggest_categorical('probabilities_parents_GA', ['ranking', 'fps'])
+    probabilities_parents_GA = 'ranking'
     elitism_rate = trial.suggest_float('elitism_rate', 0, 0.4)
-    enemies_to_train = trial.suggest_int('enemies_to_train', 1, 4)
+    enemies_to_train = trial.suggest_int('enemies_to_train', 2, 4)
     
-    best_score, results_DGA, best_DGA = train_specialist_DGA(enviroment, mutation_DGA, migration, mutation_GA, sampling_GA, 
-                                                             probabilities_parents_GA, n_point_crossover_GA, n_point_crossover_DGA, 
-                                                             elitism_rate, enemies_to_train, stacked_GA=False)
-
+    # best_score, results_DGA, best_DGA = train_specialist_DGA(enviroment, mutation_DGA, migration, mutation_GA, sampling_GA, 
+    #                                                          probabilities_parents_GA, n_point_crossover_GA, n_point_crossover_DGA, 
+    #                                                          elitism_rate, enemies_to_train, stacked_GA=True)
+    best_score, results_GA, best_GA = train_specialist_GA(enviroment, mutation_GA, probabilities_parents_GA, sampling_GA, n_point_crossover_GA, 
+                        sigma_share=15, pop_given=[], elitism_rate=elitism_rate, enemies_to_train=enemies_to_train)
     if best_score > 50:
-        np.savetxt(experiment+'/optuna_results/best_'+str(trial.number)+'.txt', np.array(best_DGA))
+        np.savetxt(experiment+'/optuna_results/best_'+str(trial.number)+'.txt', np.array(best_GA))
 
-        text = '{:.2f} with params: '.format(best_score) + str(trial.params) + '\n'
+        text = '{:.2f} on trial {} with params: '.format(best_score, trial.number) + str(trial.params) + '\n'
         filepath = experiment+'/optuna_results/parameters_log.txt'
         with contextlib.suppress(FileNotFoundError):
             with open(filepath, 'a') as file:
@@ -550,9 +551,9 @@ print('Starting optimization')
 if not os.path.exists(experiment + '/optuna_results'):
     os.makedirs(experiment + '/optuna_results') 
 # Create Optuna study
-timeout_seconds = 12*60*60 # 12 hours
+
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, timeout=timeout_seconds, n_jobs=1, gc_after_trial =True, show_progress_bar=True)
+study.optimize(objective, n_trials=100, gc_after_trial=True)
 
 # Get the best hyperparameters
 best_hyperparameters = study.best_params

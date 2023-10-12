@@ -33,13 +33,13 @@ env = Environment(experiment_name=experiment_name,
 				visuals=True)
 
 # tests saved demo solutions for each enemy
-enemies = [3,6,7,8]
+enemies = [1,2,3,4,5,6,7,8]
 
 #Update the enemy
 env.update_parameter('enemies',enemies)
 
 # Load specialist controller
-sol = np.loadtxt(experiment_name + '/best_DGA_set_test_4.txt')
+sol = np.loadtxt(experiment_name + '/optuna_results/best_1.txt')
 
 print('\n LOADING SAVED GENERALIST SOLUTION FOR ENEMIES \n')
 env.play(sol)
