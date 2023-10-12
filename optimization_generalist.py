@@ -535,7 +535,7 @@ def objective(trial):
                                                              probabilities_parents_GA, n_point_crossover_GA, n_point_crossover_DGA, 
                                                              elitism_rate, enemies_to_train, stacked_GA=False)
 
-    if best_score > 60:
+    if best_score > 50:
         np.savetxt(experiment+'/optuna_results/best_'+str(trial.number)+'.txt', np.array(best_DGA))
 
         text = '{:.2f} with params: '.format(best_score) + str(trial.params) + '\n'
