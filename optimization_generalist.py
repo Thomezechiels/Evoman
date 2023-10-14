@@ -318,12 +318,12 @@ def train_specialist_GA(env, mutation, probabilities_parents="ranking", sampling
     results.loc[len(results)] = np.array([0, np.max(fitness_gen), np.mean(fitness_gen), np.std(fitness_gen), calculate_diversity(pop)])
     
     for gen in range(1, gens_GA+1):
-        mutation -= 0.001
+        # mutation -= 0.001
         enemies_selected = list(np.random.choice(enemies, enemies_to_train, replace=False))
         env.update_parameter('enemies', enemies_selected)
         offspring = create_offspring(pop, fitness_gen, mutation=mutation, probabilities=probabilities_parents, fps_var="scaling", 
                                      fps_transpose = 10, ranking_var="exponential", sampling=sampling, sorted=(gen%2==0), 
-                                     n_crossover=n_crossover, n_offspring = 4)
+                                     n_crossover=n_crossover, n_offspring = 6)
         fitness_offspring = evaluate(enviroment, offspring)
         best_offspring = np.max(fitness_offspring)
         if best_offspring > best:
@@ -513,76 +513,33 @@ n_gen = (enviroment.get_num_sensors()+1)*n_hidden_nodes + (n_hidden_nodes+1)*5 #
 enemies = [1,2,3,4,5,6,7,8]
 enviroment.update_parameter('enemies', enemies)
 
-npop = 64
-gens_DGA = 10 # max number of generations
-gens_GA = 30
+npop = 100
+gens_DGA = 30
+gens_GA = 150
 
-import contextlib
+migration = 0.1
+n_subpops = 4
 
-def objective(trial):
-    # migration = trial.suggest_float('migration', 0, 0.3)
-    mutation_GA = trial.suggest_float('mutation_GA', 0, 0.15)
-    # mutation_DGA = trial.suggest_float('mutation_DGA', 0.1, 0.3)
-    n_point_crossover_GA = trial.suggest_int('n_point_crossover_GA', 2, 6)
-    # n_point_crossover_DGA = trial.suggest_int('n_point_crossover_DGA', 1, 6)
-    sampling_GA = trial.suggest_categorical('sampling_GA', ['sus', 'roulette'])
-    # probabilities_parents_GA = trial.suggest_categorical('probabilities_parents_GA', ['ranking', 'fps'])
-    probabilities_parents_GA = 'ranking'
-    elitism_rate = trial.suggest_float('elitism_rate', 0, 0.4)
-    enemies_to_train = trial.suggest_int('enemies_to_train', 2, 4)
-    
-    # best_score, results_DGA, best_DGA = train_specialist_DGA(enviroment, mutation_DGA, migration, mutation_GA, sampling_GA, 
-    #                                                          probabilities_parents_GA, n_point_crossover_GA, n_point_crossover_DGA, 
-    #                                                          elitism_rate, enemies_to_train, stacked_GA=True)
-    best_score, results_GA, best_GA = train_specialist_GA(enviroment, mutation_GA, probabilities_parents_GA, sampling_GA, n_point_crossover_GA, 
-                        sigma_share=15, pop_given=[], elitism_rate=elitism_rate, enemies_to_train=enemies_to_train)
-    if best_score > 50:
-        np.savetxt(experiment+'/optuna_results/best_'+str(trial.number)+'.txt', np.array(best_GA))
+n_point_crossover_DGA = 3
+sigma_share_DGA = 12
+mutation_DGA = 0.197246 # mutation probability
 
-        text = '{:.2f} on trial {} with params: '.format(best_score, trial.number) + str(trial.params) + '\n'
-        filepath = experiment+'/optuna_results/parameters_log.txt'
-        with contextlib.suppress(FileNotFoundError):
-            with open(filepath, 'a') as file:
-                file.write(text)
-    
-    return best_score
 
-print('Starting optimization')
-if not os.path.exists(experiment + '/optuna_results'):
-    os.makedirs(experiment + '/optuna_results') 
-# Create Optuna study
+mutation_GA = 0.053530705829472316
+probabilities_parents_GA = 'ranking'
+sampling_GA = 'roulette'
+n_point_crossover_GA = 2 
+elitism_rate = 0.16900216930076012
+enemies_to_train = 4
 
-study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=100, gc_after_trial=True)
+# best_score, results_GA, best_GA = train_specialist_GA(enviroment, mutation_GA, probabilities_parents_GA, sampling_GA, n_point_crossover_GA, 
+#                                                       sigma_share=15, pop_given=[], elitism_rate=elitism_rate, enemies_to_train=enemies_to_train)
+# np.savetxt(experiment+'/best_NI_1.txt',np.array(best_GA))
 
-# Get the best hyperparameters
-best_hyperparameters = study.best_params
-best_accuracy = study.best_value
-
-print("Best Hyperparameters:", best_hyperparameters)
-print("Best Accuracy:", best_accuracy)
-res = {'hyperparameters': best_hyperparameters,
-        'accuracy': best_accuracy}
-print(res)
-
-# migration = 0.1
-# n_subpops = 4
-
-# n_crossover_GA = 6
-# sigma_share_GA = 0.05
-# mutation_GA = 0.15 # mutation probability
-
-# n_crossover_DGA = 3
-# sigma_share_DGA = 12
-# mutation_DGA = 0.197246 # mutation probability
-
-# best_score, results_GA, best_GA = train_specialist_GA(enviroment, mutation=mutation_GA, test=False, 
-#                                     probabilities_parents='ranking', sampling='sus', n_crossover = n_crossover_GA, sigma_share=sigma_share_GA)
-# np.savetxt(experiment+'/best_GA_set_test_6.txt',np.array(best_GA))
-
-# best_score, results_DGA, best_DGA = train_specialist_DGA(enviroment, mutation_DGA, migration, n_subpops, sampling='sus', 
-#                                                          n_crossover=n_crossover_DGA, sigma_share=sigma_share_DGA, stacked_GA=True, elitism_rate=0.1)
-# np.savetxt(experiment+'/best_DGA_set_test_4.txt',np.array(best_DGA))
+best_score, results_DGA, best_DGA = train_specialist_DGA(enviroment, mutation_DGA, migration, mutation_GA, sampling_GA, 
+                                                         probabilities_parents_GA, n_point_crossover_GA, n_point_crossover_DGA, 
+                                                         elitism_rate, enemies_to_train, stacked_GA=True)
+np.savetxt(experiment+'/best_DGA_1.txt',np.array(best_DGA))
 
 # for enemy in enemies:
 #     df_DGA = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'diversity', 'solution'])
@@ -618,5 +575,54 @@ print(res)
         
 # import cProfile
 # cProfile.run("train_specialist_GA(enviroment, mutation_GA, False, 'ranking', 'sus')", sort="cumulative")
+
+
+# import contextlib
+
+# def objective(trial):
+#     # migration = trial.suggest_float('migration', 0, 0.3)
+#     mutation_GA = trial.suggest_float('mutation_GA', 0, 0.15)
+#     # mutation_DGA = trial.suggest_float('mutation_DGA', 0.1, 0.3)
+#     n_point_crossover_GA = trial.suggest_int('n_point_crossover_GA', 2, 6)
+#     # n_point_crossover_DGA = trial.suggest_int('n_point_crossover_DGA', 1, 6)
+#     sampling_GA = trial.suggest_categorical('sampling_GA', ['sus', 'roulette'])
+#     # probabilities_parents_GA = trial.suggest_categorical('probabilities_parents_GA', ['ranking', 'fps'])
+#     probabilities_parents_GA = 'ranking'
+#     elitism_rate = trial.suggest_float('elitism_rate', 0, 0.4)
+#     enemies_to_train = trial.suggest_int('enemies_to_train', 2, 4)
+    
+#     # best_score, results_DGA, best_DGA = train_specialist_DGA(enviroment, mutation_DGA, migration, mutation_GA, sampling_GA, 
+#     #                                                          probabilities_parents_GA, n_point_crossover_GA, n_point_crossover_DGA, 
+#     #                                                          elitism_rate, enemies_to_train, stacked_GA=True)
+#     best_score, results_GA, best_GA = train_specialist_GA(enviroment, mutation_GA, probabilities_parents_GA, sampling_GA, n_point_crossover_GA, 
+#                         sigma_share=15, pop_given=[], elitism_rate=elitism_rate, enemies_to_train=enemies_to_train)
+#     if best_score > 50:
+#         np.savetxt(experiment+'/optuna_results/best_'+str(trial.number)+'.txt', np.array(best_GA))
+
+#         text = '{:.2f} on trial {} with params: '.format(best_score, trial.number) + str(trial.params) + '\n'
+#         filepath = experiment+'/optuna_results/parameters_log.txt'
+#         with contextlib.suppress(FileNotFoundError):
+#             with open(filepath, 'a') as file:
+#                 file.write(text)
+    
+#     return best_score
+
+# print('Starting optimization')
+# if not os.path.exists(experiment + '/optuna_results'):
+#     os.makedirs(experiment + '/optuna_results') 
+# # Create Optuna study
+
+# study = optuna.create_study(direction='maximize')
+# study.optimize(objective, n_trials=100, gc_after_trial=True)
+
+# # Get the best hyperparameters
+# best_hyperparameters = study.best_params
+# best_accuracy = study.best_value
+
+# print("Best Hyperparameters:", best_hyperparameters)
+# print("Best Accuracy:", best_accuracy)
+# res = {'hyperparameters': best_hyperparameters,
+#         'accuracy': best_accuracy}
+# print(res)
     
     

@@ -39,7 +39,7 @@ enemies = [1,2,3,4,5,6,7,8]
 env.update_parameter('enemies',enemies)
 
 # Load specialist controller
-sol = np.loadtxt(experiment_name + '/optuna_results/best_1.txt')
+sol = np.loadtxt(experiment_name + '/best_NI_1.txt')
 
 print('\n LOADING SAVED GENERALIST SOLUTION FOR ENEMIES \n')
 env.play(sol)
