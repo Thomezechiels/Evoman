@@ -369,7 +369,9 @@ def train_specialist_GA(env, mutation, probabilities_parents="ranking", sampling
 def train_specialist_DGA(env, mutation_DGA, migration, mutation_GA, sampling_GA, probabilities_parents_GA, n_point_crossover_GA, 
                          n_point_crossover_DGA, elitism_rate, enemies_to_train, stacked_GA=True):
     pop = []
+    results = pd.DataFrame(columns=['gen', 'enemy', 'best', 'mean'])
     if stacked_GA:
+        
         n_subpops = len(enemies)
         pop = initialize_population(npop_DGA)
         subpops = np.array_split(pop, n_subpops, axis=0)
@@ -407,7 +409,7 @@ def train_specialist_DGA(env, mutation_DGA, migration, mutation_GA, sampling_GA,
                     top_indices = np.argsort(fitness_subpop)[::-1][:new_pop_reduction]
                     subpops[idx] = subpop[top_indices]
                 else:    
-                    num_top = round(sub_pop_size * 0.20)
+                    num_top = round(sub_pop_size * elitism_rate)
                     top_indices = np.argsort(fitness_subpop)[::-1][:num_top]
                     mask = np.ones_like(np.zeros(len(subpop)), dtype=bool)
                     mask[top_indices] = False
@@ -424,17 +426,22 @@ def train_specialist_DGA(env, mutation_DGA, migration, mutation_GA, sampling_GA,
                     selected = np.concatenate((selected, top_indices))
                     fitness_subpops[idx] = fitness_subpop[selected]
                     subpops[idx] = subpop[selected]
-                
+            
+            for idx, fitness_subpop in enumerate(fitness_subpops):
+                best_subpop = np.max(fitness_subpop)
+                mean_subpop = np.mean(fitness_subpop)
+                results.loc[len(results)] = np.array([gen, enemies[idx], best_subpop, mean_subpop])  
+                print('Gen: {}, Enemy: {}, Best: {:.2f}, Mean: {:.2f}'.format(gen, enemies[idx], best_subpop, mean_subpop))
             fitness_gen = np.concatenate(fitness_subpops)
             pop = np.concatenate(subpops)
             best = np.max(fitness_gen)
 
-            
-    env.update_parameter('multiplemode', 'yes')    
-    env.update_parameter('enemies', enemies)    
-    return train_specialist_GA(env, mutation=mutation_GA, 
-                                probabilities_parents=probabilities_parents_GA, sampling=sampling_GA, n_crossover = n_point_crossover_GA, 
-                                    sigma_share=10, pop_given=pop, elitism_rate=elitism_rate, enemies_to_train=enemies_to_train)    
+    return results  
+    # env.update_parameter('multiplemode', 'yes')    
+    # env.update_parameter('enemies', enemies)    
+    # return train_specialist_GA(env, mutation=mutation_GA, 
+    #                             probabilities_parents=probabilities_parents_GA, sampling=sampling_GA, n_crossover = n_point_crossover_GA, 
+    #                                 sigma_share=10, pop_given=pop, elitism_rate=elitism_rate, enemies_to_train=enemies_to_train)    
 
 
 experiment = 'generalist_optimization' # name of the experiment
@@ -494,36 +501,52 @@ nruns = 10
 
 for set_num, enemy_set in enemy_sets.items():
     enemies = enemy_set
-    df_DGA = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'solution'])
-    df_GA = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'solution'])
+    df_results = pd.DataFrame(columns=['gen', 'enemy', 'best', 'mean', 'solution'])
     best_sols_DGA = []
-    best_sols_GA = []
     for i in range(nruns):
         print('Generating solution {}/{}'.format(i+1,nruns))
-        best_score, results_DGA, best_DGA = train_specialist_DGA(enviroment, mutation_DGA, migration, mutation_GA, sampling_GA, 
+        results = train_specialist_DGA(enviroment, mutation_DGA, migration, mutation_GA, sampling_GA, 
                                                                 probabilities_parents_GA, n_point_crossover_GA, n_point_crossover_DGA, 
                                                                 elitism_rate, enemies_to_train, stacked_GA=True)
-        best_score, results_GA, best_GA = train_specialist_DGA(enviroment, mutation_DGA, migration, mutation_GA, sampling_GA, 
-                                                                probabilities_parents_GA, n_point_crossover_GA, n_point_crossover_DGA, 
-                                                                elitism_rate, enemies_to_train, stacked_GA=False)
         enviroment.update_parameter('enemies', enemies)
-        gain_DGA = simulation_gain(enviroment, best_DGA)
-        gain_GA = simulation_gain(enviroment, best_GA)
-        print('Gain for guided initialization solution {}: {}'.format(i+1, gain_DGA))
-        print('Gain for random solution {}: {}'.format(i+1, gain_GA))
-        best_sols_DGA.append(best_DGA)
-        best_sols_GA.append(best_GA)          
-        results_DGA['solution'] = i
-        results_GA['solution'] = i
+        results['solution'] = i
         
-        df_DGA = pd.concat([df_DGA, results_DGA], axis=0, ignore_index=True)
-        df_GA = pd.concat([df_GA, results_GA], axis=0, ignore_index=True)
-        
-    np.savetxt(experiment+'/best_GI_set_'+str(set_num)+'.txt',np.array(best_sols_DGA))
-    np.savetxt(experiment+'/best_RI_runs_'+str(set_num)+'.txt',np.array(best_sols_GA))
+        df_results = pd.concat([df_results, results], axis=0, ignore_index=True)
             
-    df_DGA.to_csv(experiment+'/results_GI_'+str(set_num)+'.csv')
-    df_GA.to_csv(experiment+'/results_RI_'+str(set_num)+'.csv')
+    df_results.to_csv(experiment+'/results_DGA_'+str(set_num)+'.csv')
+
+# for set_num, enemy_set in enemy_sets.items():
+#     enemies = enemy_set
+#     df_DGA = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'solution'])
+#     df_GA = pd.DataFrame(columns=['gen', 'best', 'mean', 'std', 'solution'])
+#     best_sols_DGA = []
+#     best_sols_GA = []
+#     for i in range(nruns):
+#         print('Generating solution {}/{}'.format(i+1,nruns))
+#         best_score, results_DGA, best_DGA = train_specialist_DGA(enviroment, mutation_DGA, migration, mutation_GA, sampling_GA, 
+#                                                                 probabilities_parents_GA, n_point_crossover_GA, n_point_crossover_DGA, 
+#                                                                 elitism_rate, enemies_to_train, stacked_GA=True)
+#         best_score, results_GA, best_GA = train_specialist_DGA(enviroment, mutation_DGA, migration, mutation_GA, sampling_GA, 
+#                                                                 probabilities_parents_GA, n_point_crossover_GA, n_point_crossover_DGA, 
+#                                                                 elitism_rate, enemies_to_train, stacked_GA=False)
+#         enviroment.update_parameter('enemies', enemies)
+#         gain_DGA = simulation_gain(enviroment, best_DGA)
+#         gain_GA = simulation_gain(enviroment, best_GA)
+#         print('Gain for guided initialization solution {}: {}'.format(i+1, gain_DGA))
+#         print('Gain for random solution {}: {}'.format(i+1, gain_GA))
+#         best_sols_DGA.append(best_DGA)
+#         best_sols_GA.append(best_GA)          
+#         results_DGA['solution'] = i
+#         results_GA['solution'] = i
+        
+#         df_DGA = pd.concat([df_DGA, results_DGA], axis=0, ignore_index=True)
+#         df_GA = pd.concat([df_GA, results_GA], axis=0, ignore_index=True)
+        
+#     np.savetxt(experiment+'/best_GI_set_'+str(set_num)+'.txt',np.array(best_sols_DGA))
+#     np.savetxt(experiment+'/best_RI_runs_'+str(set_num)+'.txt',np.array(best_sols_GA))
+            
+#     df_DGA.to_csv(experiment+'/results_GI_'+str(set_num)+'.csv')
+#     df_GA.to_csv(experiment+'/results_RI_'+str(set_num)+'.csv')
 
 # import cProfile
 # cProfile.run("train_specialist_GA(enviroment, mutation_GA, False, 'ranking', 'sus')", sort="cumulative")
