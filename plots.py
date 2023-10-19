@@ -117,27 +117,59 @@ def simulation(env,x):
     return f,p,e,t
 
 
+fig = plt.figure()
+ax = fig.add_subplot(111)
+
 all_enemies = [1,2,3,4,5,6,7,8]
 gains = []
 ENV.update_parameter('enemies', all_enemies)
-for set, enemies in enemy_sets.items():
-    for method in methods:
-        best = np.loadtxt(experiment + '/best_'+method+'_set_'+str(set)+'.txt')
-        gains_solutions = []
-        for i in range(len(best)):
-            cur_best = best[i]
-            f,p,e,t = simulation(ENV, cur_best)
-            # print('Enemy {} method {} | gain = {}'.format(enemy, method, np.average(gain_sims)))
-            gains_solutions.append(sum(p)-sum(e))
-        print('Higest gain method {} enemy set {}: {:.2f} from solution {}'.format(method, str(set), np.max(gains_solutions), str(np.argmax(gains_solutions)+1)))
-        gains.append(gains_solutions)
+set='1'
+for method in methods:
+    best = np.loadtxt(experiment + '/best_'+method+'_set_'+str(set)+'.txt')
+    gains_solutions = []
+    for i in range(len(best)):
+        cur_best = best[i]
+        f,p,e,t = simulation(ENV, cur_best)
+        # print('Enemy {} method {} | gain = {}'.format(enemy, method, np.average(gain_sims)))
+        gains_solutions.append(sum(p)-sum(e))
+    print('Higest gain method {} enemy set {}: {:.2f} from solution {}'.format(method, str(set), np.max(gains_solutions), str(np.argmax(gains_solutions)+1)))
+    gains.append(gains_solutions)
+bp = ax.boxplot(np.array(gains).T, positions=[1,2], widths = 0.4, patch_artist=True, boxprops=dict(facecolor="lightblue"), zorder=1)
+
+for i, d in enumerate(np.array(gains).T):
+   for j in range(len(d)):
+       y = d[j]
+       ax.scatter(j+1, y, color='gray', edgecolors='black', alpha = 0.4, zorder=2)
+
+set='2'
+gains = []
+for method in methods:
+    best = np.loadtxt(experiment + '/best_'+method+'_set_'+str(set)+'.txt')
+    gains_solutions = []
+    for i in range(len(best)):
+        cur_best = best[i]
+        f,p,e,t = simulation(ENV, cur_best)
+        # print('Enemy {} method {} | gain = {}'.format(enemy, method, np.average(gain_sims)))
+        gains_solutions.append(sum(p)-sum(e))
+    print('Higest gain method {} enemy set {}: {:.2f} from solution {}'.format(method, str(set), np.max(gains_solutions), str(np.argmax(gains_solutions)+1)))
+    gains.append(gains_solutions)
+bp1 = ax.boxplot(np.array(gains).T, positions=[3,4], widths = 0.4, patch_artist=True, boxprops=dict(facecolor="steelblue"), zorder=1)
+
+for i, d in enumerate(np.array(gains).T):
+   for j in range(len(d)):
+       y = d[j]
+       ax.scatter(j+3, y, color='gray', edgecolors='black', alpha = 0.4, zorder=2)
+
+
+ax.legend([bp["boxes"][0], bp1["boxes"][0]], [enemy_sets['1'], enemy_sets['2']], loc='upper right')
+
 
 # Create a boxplot
-plt.boxplot(np.array(gains).T)  
-plt.title('Gain best GI and RI solutions vs 2 enemy sets')
-plt.xlabel('Algorithm and enemy')
+# plt.boxplot(np.array(gains).T)  
+plt.title('Gain best GI and RI solutions')
+plt.xlabel('Evolutionary algorithm')
 plt.ylabel('Gain')
-x_labels = ['GI enemy set 1', 'RI enemy set 1', 'GI enemy set 2', 'RI enemy set 2']
+x_labels = ['GI', 'RI', 'GI', 'RI']
 plt.xticks(np.arange(1, 5), x_labels)  
 
 plt.show()
@@ -148,7 +180,7 @@ f,p,e,t = simulation(ENV, very_best)
 print('Player life', p)
 print('Enemy life', e)
 
-# t-test for significance 
-for i in range(0, len(enemy_sets)*2, 2):
-    t_statistic, p_value = stats.ttest_ind(gains[i], gains[(i+1)])
-    print('For enemy {} the p-value is {}'.format(enemy_sets[str(int((i+2)/2))], p_value))
+# # t-test for significance 
+# for i in range(0, len(enemy_sets)*2, 2):
+#     t_statistic, p_value = stats.ttest_ind(gains[i], gains[(i+1)])
+#     print('For enemy {} the p-value is {}'.format(enemy_sets[str(int((i+2)/2))], p_value))
